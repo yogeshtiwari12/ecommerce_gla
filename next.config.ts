@@ -19,8 +19,6 @@ const nextConfig: NextConfig = {
   compress: true,
   // Enable React strict mode for better error detection
   reactStrictMode: true,
-  // Performance optimizations
-  swcMinify: true,
 };
 
 export default nextConfig;

@@ -6,7 +6,7 @@ import { prisma } from "@/app/lib/prisma";
 
 export async function POST(
   req: Request,
-  context: { params: { pid: string } }
+  context: { params: Promise<{ pid: string }> }
 ) {
   try {
     const { pid } = await context?.params;
