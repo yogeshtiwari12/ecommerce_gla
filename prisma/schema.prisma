@@ -1,0 +1,112 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../generated/prisma/client"
+}
+
+datasource db {
+  provider = "postgresql"
+  // url      = env("DATABASE_URL")
+}
+
+model User {
+  id               String        @id @default(uuid()) @db.Uuid
+  email            String        @unique
+  name             String
+  phone            String?
+  password         String
+  otp              String?
+  isVerified       Boolean       @default(false)
+  verifyCodeExpiry DateTime?
+  employeeId       String?       @unique
+  createdAt        DateTime      @default(now())
+  updatedAt        DateTime      @updatedAt
+  role             Role          @default(user)
+  Item             Item[]
+  UserProduct      UserProduct[]
+}
+
+model UserProduct {
+  id                       String         @id @default(uuid()) @db.Uuid
+  product_name             String
+  user_product_description String
+  user_product_price       Int
+  user_product_category    String
+  user_product_item_id     String         @unique
+  user_product_unit_total  Int?           @default(0)
+  user_product_cart_count  Int?           @default(0)
+  userId                   String?        @db.Uuid
+  iscancelled              Boolean?       @default(false)
+  isdelivered              Boolean?       @default(false)
+  isorderConfirmbyUser     Boolean        @default(false)
+  cartItem                 Boolean        @default(false)
+  productId                String         @db.Uuid
+  product_delivery_status  DeliveryStatus @default(pending)
+  cancel_order_otp         String?
+  createdAt                DateTime       @default(now())
+  updatedAt                DateTime       @updatedAt
+  user_product_imageUrl    String?
+  User                     User?          @relation(fields: [userId], references: [id])
+}
+
+model Item {
+  id          String   @id @default(uuid()) @db.Uuid
+  name        String
+  description String
+  price       Int
+  category    String
+  imageUrl    String
+  stock       Int      @default(0)
+  itemid      String?  @unique
+  reason      String?
+  userId      String?  @db.Uuid
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  User        User?    @relation(fields: [userId], references: [id])
+}
+
+
+
+enum Role {
+  user
+  admin
+  delivery_agent
+}
+
+enum DeliveryStatus {
+  delivered
+  cancelled
+  pending
+  shipped
+  in_transit
+  picked_up
+}
+
+
+model ShippingAddress {
+  id            String       @id @default(uuid()) @db.Uuid
+  phoneNumber   String       @db.VarChar(15)
+  streetAddress String
+  city          String       @db.VarChar(100)
+  state         String       @db.VarChar(100)
+  pinCode       String       @db.VarChar(6)
+  // product_id    String       @unique @db.Uuid 
+  product_id       String       @unique          //update orderid for each related product 
+  userId        String?       @db.Uuid 
+  createdAt     DateTime     @default(now())
+  updatedAt     DateTime     @updatedAt
+  
+}
+model PaymentDetails{
+  id            String       @id @default(uuid()) @db.Uuid
+  userId          String    @db.Uuid
+  orderId         String    @unique
+  item_product_id  String    @db.Uuid 
+  amount          Int
+  paymentMethod   String
+  paymentStatus   String
+  transactionId   String    @unique
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt    
+}
+
+
