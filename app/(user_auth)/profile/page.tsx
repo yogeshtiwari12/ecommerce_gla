@@ -120,9 +120,15 @@ const ProfilePage = () => {
   // Fetch profile function
   const fetchProfile = useCallback(async () => {
     try {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 second timeout
+      
       const response = await axios.get("/api/profile", {
         withCredentials: true,
+        signal: controller.signal,
       });
+      
+      clearTimeout(timeoutId);
 
       if (response.status !== 200) {
         throw new Error(`HTTP error! status: ${response.status}`);
@@ -135,8 +141,12 @@ const ProfilePage = () => {
         console.error("API returned error:", response.data.message);
         setLoading(false);
       }
-    } catch (error) {
-      console.error("Error fetching profile:", error);
+    } catch (error: any) {
+      if (error.name === 'AbortError') {
+        console.error("Profile fetch timeout after 10 seconds");
+      } else {
+        console.error("Error fetching profile:", error);
+      }
       setLoading(false);
     }
   }, []);
@@ -154,7 +164,6 @@ const ProfilePage = () => {
   console.log("Current addresses in Redux store:",profileData?.productid);
 
   const removecart = async (productId: string) => {
-
     setRemovingItems(prev => new Set(prev).add(productId));
 
     try {
@@ -170,32 +179,35 @@ const ProfilePage = () => {
         };
       });
 
-      const result = await dispatch(removecart_data(productId));
+      const result = await Promise.race([
+        dispatch(removecart_data(productId)),
+        new Promise((_, reject) => 
+          setTimeout(() => reject(new Error("Request timeout")), 8000)
+        )
+      ]);
 
-      if (result.payload.success) {
-        toast.success(result.payload.message);
+      if ((result as any).payload?.success) {
+        toast.success((result as any).payload.message);
       } else {
-        toast.error(result.payload.message);
+        toast.error((result as any).payload?.message || "Failed to remove");
         await fetchProfile();
       }
     } catch (error) {
       console.error("Error removing product:", error);
       toast.error("Failed to remove product. Please try again.");
-
       await fetchProfile();
     } finally {
       setRemovingItems(prev => {
         const newSet = new Set(prev);
         newSet.delete(productId);
         return newSet;
-
       });
     }
   };
 
   const increaseCartCount = async (productId: string) => {
     try {
-      // Optimistic update — no API round-trip before UI reflects change
+      // Optimistic update
       setProfileData((prevData: any) => {
         if (!prevData?.user_shop_data) return prevData;
         return {
@@ -207,18 +219,25 @@ const ProfilePage = () => {
           ),
         };
       });
-      const onsuccess = await dispatch(increase_cart_count(productId));
-      if (onsuccess.payload.success) {
-        toast.success(onsuccess.payload.message);
+      
+      const onsuccess = await Promise.race([
+        dispatch(increase_cart_count(productId)),
+        new Promise((_, reject) => 
+          setTimeout(() => reject(new Error("Request timeout")), 8000)
+        )
+      ]);
+      
+      if ((onsuccess as any).payload?.success) {
+        toast.success((onsuccess as any).payload.message);
       } else {
-        toast.error(onsuccess.payload.message);
-        await fetchProfile(); // rollback on error
+        toast.error((onsuccess as any).payload?.message || "Failed to update");
+        await fetchProfile();
       }
     } catch (error) {
       toast.error("Failed to increase cart count. Please try again.");
-      await fetchProfile(); // rollback on error
+      await fetchProfile();
     }
-  }
+  };
 
   const decreaseCartCount = async (productId: string) => {
     try {
@@ -230,7 +249,7 @@ const ProfilePage = () => {
         toast.error("Minimum quantity is 1");
         return;
       }
-      // Optimistic update — no API round-trip before UI reflects change
+      // Optimistic update
       setProfileData((prevData: any) => {
         if (!prevData?.user_shop_data) return prevData;
         return {
@@ -242,16 +261,23 @@ const ProfilePage = () => {
           ),
         };
       });
-      const onsuccess = await dispatch(decrease_cart_count(productId));
-      if (onsuccess.payload.success) {
-        toast.success(onsuccess.payload.message);
+      
+      const onsuccess = await Promise.race([
+        dispatch(decrease_cart_count(productId)),
+        new Promise((_, reject) => 
+          setTimeout(() => reject(new Error("Request timeout")), 8000)
+        )
+      ]);
+      
+      if ((onsuccess as any).payload?.success) {
+        toast.success((onsuccess as any).payload.message);
       } else {
-        toast.error(onsuccess.payload.message);
-        await fetchProfile(); // rollback on error
+        toast.error((onsuccess as any).payload?.message || "Failed to update");
+        await fetchProfile();
       }
     } catch (error) {
       toast.error("Failed to decrease cart count. Please try again.");
-      await fetchProfile(); // rollback on error
+      await fetchProfile();
     }
   };
 
@@ -283,8 +309,14 @@ const ProfilePage = () => {
     }
 
     try {
-      const result = await dispatch(update_product_address({ shippingId: resolvedShippingId, address: current }));
-      if (result.payload?.success) {
+      const result = await Promise.race([
+        dispatch(update_product_address({ shippingId: resolvedShippingId, address: current })),
+        new Promise((_, reject) => 
+          setTimeout(() => reject(new Error("Request timeout")), 8000)
+        )
+      ]);
+      
+      if ((result as any).payload?.success) {
         toast.success("Address updated successfully!");
         // clear only this order's form state
         setAddressInput(prev => {
@@ -295,7 +327,7 @@ const ProfilePage = () => {
         setEditingAddressOrderId(null);
         fetchProfile();
       } else {
-        toast.error(result.payload);
+        toast.error((result as any).payload?.message || "Failed to update address");
       }
     } catch (error: any) {
       const errorMessage = error?.response?.data?.message || error?.message || "Error updating address. Please try again.";

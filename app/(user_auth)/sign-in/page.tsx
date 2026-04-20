@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -14,15 +14,23 @@ import {
 } from "@/components/ui/card";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Loader2 } from "lucide-react";
-import { getSession, signIn } from "next-auth/react";
+import { signIn, useSession } from "next-auth/react";
 import { toast } from "sonner";
-import { getDefaultRouteForRole } from "@/lib/role-routes";
 
 const SignInPage = () => {
   const router = useRouter();
+  
+  const { data: session, status } = useSession();
   const [formData, setFormData] = useState({ email: "codekro8@gmail.com", password: "12345678" });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+
+  // If user is already authenticated, redirect to profile
+  useEffect(() => {
+    if (status === "authenticated" && session?.user) {
+      router.push("/profile");
+    }
+  }, [status, session, router]);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setFormData({ ...formData, [e.target.name]: e.target.value });
@@ -52,21 +60,12 @@ const SignInPage = () => {
         toast.success("Sign in successful");
         setFormData({ email: "", password: "" });
         
-        // Wait for session to be updated on server before redirecting
-        // Try multiple times to get the session
-        let session = null;
-        for (let i = 0; i < 5; i++) {
-          await new Promise(resolve => setTimeout(resolve, 200));
-          session = await getSession();
-          if (session?.user?.role) break;
-        }
+        // Brief delay to allow session to be set on server
+        await new Promise(resolve => setTimeout(resolve, 100));
         
-        const redirectUrl = session?.user?.role 
-          ? getDefaultRouteForRole(session.user.role)
-          : "/profile";
-        
-        // Use router.push instead of window.location.href for better SPA experience
-        router.push(redirectUrl);
+        // Redirect to profile - proxy will handle role-based redirects
+        // Default to /profile for users, admin will be redirected by proxy
+        router.push("/profile");
         return;
       } else {
         const errorMessage = res?.error || "Sign in failed. Please check your credentials.";
