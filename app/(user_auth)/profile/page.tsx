@@ -1,6 +1,8 @@
 "use client";
 import React, { useState, useEffect, useMemo, useCallback } from "react";
 import Image from "next/image";
+import { useSession } from "next-auth/react";
+import { useRouter } from "next/navigation";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -34,12 +36,31 @@ import { toast } from "sonner";
 
 
 const ProfilePage = () => {
+  const { data: session, status } = useSession();
+  const router = useRouter();
   const [profileData, setProfileData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState("profile");
   const [removingItems, setRemovingItems] = useState<Set<string>>(new Set());
   const dispatch = useDispatch<AppDispatch>();
   const addressesById = useSelector((state: any) => state.product.addressesById);
+
+  // Protect route - redirect if not authenticated
+  useEffect(() => {
+    if (status === "unauthenticated") {
+      router.push("/sign-in");
+    }
+  }, [status, router]);
+
+  // Show loading state while checking auth
+  if (status === "loading") {
+    return <div className="flex items-center justify-center min-h-screen">Loading...</div>;
+  }
+
+  // Don't render if not authenticated
+  if (!session?.user) {
+    return null;
+  }
 
   console.log("Current addresses in Redux store:",profileData?.productid);  
 

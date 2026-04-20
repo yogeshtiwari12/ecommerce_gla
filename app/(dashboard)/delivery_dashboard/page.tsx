@@ -1,6 +1,7 @@
 "use client"
 
 import { useEffect, useState, useMemo, useRef } from "react"
+import { useRouter } from "next/navigation"
 import {
   Package,
   Clock,
@@ -36,6 +37,8 @@ import { user_delivery_update } from "@/app/redux/product"
 import { useSession } from "next-auth/react"
 
 export default function EnhancedDeliveryDashboard() {
+  const router = useRouter()
+  const { data: session, status } = useSession()
   const [activeTab, setActiveTab] = useState("dashboard")
   const [searchTerm, setSearchTerm] = useState("")
   const [statusFilter, setStatusFilter] = useState("all")
@@ -46,6 +49,25 @@ export default function EnhancedDeliveryDashboard() {
   const [selectedOrderForCancel, setSelectedOrderForCancel] = useState<string | null>(null)
   const [otpVerifying, setOtpVerifying] = useState(false)
   const dispatch = useDispatch<AppDispatch>()
+
+  // Protect route - redirect if not authenticated or not delivery agent
+  useEffect(() => {
+    if (status === "unauthenticated") {
+      router.push("/sign-in")
+    } else if (status === "authenticated" && session?.user?.role !== "delivery_agent") {
+      router.push("/profile")
+    }
+  }, [status, session?.user?.role, router])
+
+  // Show loading state while checking auth
+  if (status === "loading") {
+    return <div className="flex items-center justify-center min-h-screen">Loading...</div>
+  }
+
+  // Don't render if not authenticated or not delivery agent
+  if (!session?.user || session.user.role !== "delivery_agent") {
+    return null
+  }
 
   const [userswithproduuct, setUsersWithProducts] = useState<any>(null)
   const current_user = useSession()

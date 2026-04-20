@@ -47,10 +47,18 @@ const SignInPage = () => {
       });
 
       if (res?.ok) {
-        const session = await getSession();
         toast.success("Sign in successful");
         setFormData({ email: "", password: "" });
-        window.location.href = getDefaultRouteForRole(session?.user?.role);
+        
+        // Wait for session to be updated on server before redirecting
+        await new Promise(resolve => setTimeout(resolve, 500));
+        
+        const session = await getSession();
+        const redirectUrl = session?.user?.role 
+          ? getDefaultRouteForRole(session.user.role)
+          : "/profile";
+        
+        window.location.href = redirectUrl;
       } else {
         const errorMessage = res?.error || "Sign in failed. Please check your credentials.";
         setError(errorMessage);
