@@ -1,6 +1,6 @@
 "use client";
 import { ShoppingBag, CreditCard, Lock, MapPin, Phone, Check, Shield, Package, Truck, Wallet, Building2 } from 'lucide-react';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { buy_data, createOrder, verifyPayment, savePayment, createUserProduct } from '@/app/redux/product';
 import { useDispatch, useSelector } from 'react-redux';
 import { AppDispatch, RootState } from '@/app/redux/store';
@@ -11,7 +11,7 @@ import OrderSuccessModal from '@/app/components/OrderSuccessModal';
 export default function CheckoutPage() {
   const dispatch = useDispatch<AppDispatch>();
   const { buyData, loading } = useSelector((state: RootState) => state.product);
-  
+
   const searchParams = useSearchParams();
   const isCartCheckout = searchParams.get('cart') === 'true';
   const pid = searchParams.get('pid') || '';
@@ -31,6 +31,10 @@ export default function CheckoutPage() {
   const [orderDetails, setOrderDetails] = useState<any>(null);
   const [cartItems, setCartItems] = useState<any[]>([]);
 
+  // Use a ref to track if payment was handled by the handler()
+  // so onclose doesn't double-process
+  const paymentHandledRef = useRef(false);
+
   useEffect(() => {
     const script = document.createElement('script');
     script.src = 'https://checkout.razorpay.com/v1/checkout.js';
@@ -41,7 +45,6 @@ export default function CheckoutPage() {
       setIsRazorpayLoaded(false);
     };
     document.body.appendChild(script);
-
     return () => {
       document.body.removeChild(script);
     };
@@ -49,7 +52,6 @@ export default function CheckoutPage() {
 
   useEffect(() => {
     if (isCartCheckout) {
-      // Fetch cart items
       fetchCartItems();
     } else if (pid) {
       dispatch(buy_data(pid));
@@ -69,15 +71,13 @@ export default function CheckoutPage() {
     }
   };
 
-  // Add helper to check if product already exists as order
   const checkIfProductOrdered = async (productId: string, userId: string) => {
     try {
       const response = await fetch('/api/profile');
       const data = await response.json();
-      
       if (data.success) {
-        const orderedProduct = data.user_shop_data?.find((item: any) => 
-          item.productId === productId && 
+        const orderedProduct = data.user_shop_data?.find((item: any) =>
+          item.productId === productId &&
           item.isorderConfirmbyUser === true &&
           item.userId === userId
         );
@@ -91,26 +91,21 @@ export default function CheckoutPage() {
   };
 
   const product = isCartCheckout ? null : buyData?.buy_data;
-  const subtotal = isCartCheckout 
+  const subtotal = isCartCheckout
     ? cartItems.reduce((acc, item) => acc + (item.user_product_price * item.user_product_cart_count), 0)
     : (product?.price || 0);
   const shipping = 0;
   const total = subtotal + shipping;
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setFormData({
-      ...formData,
-      [e.target.name]: e.target.value
-    });
+    setFormData({ ...formData, [e.target.name]: e.target.value });
   };
 
   const saveShippingAddress = async () => {
     try {
-      const productIds = isCartCheckout 
+      const productIds = isCartCheckout
         ? cartItems.map(item => item.id || item._id)
         : [pid];
-
-      console.log('Saving address for product IDs:', productIds);
 
       const response = await fetch('/api/address', {
         method: 'POST',
@@ -127,14 +122,10 @@ export default function CheckoutPage() {
 
       const data = await response.json();
       if (!data.success) {
-        console.error('Address API Error:', data);
         throw new Error(data.error || 'Failed to save address');
       }
-      
-      console.log('Addresses saved successfully:', data);
       return data.data;
     } catch (error: any) {
-      console.error('Address save error:', error);
       alert(`Failed to save address: ${error.message}`);
       throw error;
     }
@@ -170,11 +161,117 @@ export default function CheckoutPage() {
     }
   };
 
-  const {data:session} = useSession();    
+  // ─── Shared helper: finalize order after payment confirmed ───────────────────
+  const finalizeOrder = async (
+    userId: string,
+    log: Array<{ step: string; time: string; status: string }>,
+    paymentId: string,
+    razorpayOrderId: string
+  ) => {
+    const stepTime = new Date().toLocaleTimeString();
+
+    if (isCartCheckout) {
+      const bulkResult = await createBulkUserProduct();
+      if (!bulkResult.success) throw new Error('Failed to create bulk order');
+
+      setOrderDetails({
+        paymentId,
+        orderId: razorpayOrderId,
+        amount: total,
+        paymentMethod: 'Razorpay',
+        timeline: log,
+        productName: `${cartItems.length} Items`,
+        productImage: undefined
+      });
+    } else {
+      const existingOrder = await checkIfProductOrdered(pid, userId);
+
+      if (existingOrder) {
+        // Just increment the quantity
+        await fetch('/api/user-product', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            product_name: product?.name,
+            user_product_description: product?.description,
+            user_product_price: product?.price,
+            user_product_category: product?.category,
+            user_product_item_id: pid,
+            user_product_imageUrl: product?.imageUrl,
+          })
+        });
+        console.log('✅ Product quantity updated (already ordered)');
+      } else {
+        const productResult = await dispatch(createUserProduct({
+          product_name: product?.name,
+          user_product_description: product?.description,
+          user_product_price: product?.price,
+          user_product_category: product?.category,
+          user_product_item_id: pid,
+          user_product_imageUrl: product?.imageUrl,
+        }));
+
+        if (!createUserProduct.fulfilled.match(productResult)) {
+          throw new Error('Failed to create order');
+        }
+        console.log('✅ New order created');
+      }
+
+      setOrderDetails({
+        paymentId,
+        orderId: razorpayOrderId,
+        amount: total,
+        paymentMethod: 'Razorpay',
+        timeline: [...log, { step: 'Order Created', time: stepTime, status: '✅' }],
+        productName: product?.name,
+        productImage: product?.imageUrl
+      });
+    }
+
+    setShowSuccessModal(true);
+    setTimeout(() => { window.location.href = '/profile'; }, 2000);
+  };
+
+  // ─── Poll Razorpay payment status until confirmed ────────────────────────────
+  const pollPaymentStatus = async (
+    razorpayOrderId: string,
+    userId: string
+  ): Promise<boolean> => {
+    const maxPolls = 24; // 2 minutes at 5s intervals
+    let attempts = 0;
+
+    console.log('🔴 pollPaymentStatus called with orderId:', razorpayOrderId);
+
+    while (attempts < maxPolls) {
+      try {
+        console.log(`🔴 Polling attempt ${attempts + 1}/${maxPolls}`);
+        const res = await fetch(`/api/payment-status?orderId=${razorpayOrderId}`);
+        const data = await res.json();
+
+        console.log(`🔴 Poll response:`, data);
+
+        if (data.paymentCompleted) {
+          console.log('✅ Payment confirmed via polling');
+          return true;
+        }
+      } catch (err) {
+        console.error('Poll error:', err);
+      }
+
+      attempts++;
+      if (attempts < maxPolls) {
+        console.log(`🔴 Waiting 5s before next poll...`);
+        await new Promise(resolve => setTimeout(resolve, 5000));
+      }
+    }
+
+    console.log('❌ Polling timed out after 2 minutes');
+    return false;
+  };
+
+  const { data: session } = useSession();
 
   const handleRazorpayPayment = async (userId: string) => {
-    let paymentTimeout: NodeJS.Timeout | null = null;
-    
     try {
       if (!isRazorpayLoaded) {
         alert('Payment gateway is loading. Please try again in a moment.');
@@ -182,16 +279,17 @@ export default function CheckoutPage() {
         return;
       }
 
-      const log: Array<{step: string, time: string, status: string}> = [];
-      
-      // Step 1: Create Order
-      const step1Time = new Date().toLocaleTimeString();
-      log.push({step: 'Creating Razorpay Order', time: step1Time, status: '⏳'});
+      const log: Array<{ step: string; time: string; status: string }> = [];
 
-      // Get all product IDs for cart or single product
-      const itemProductIds = isCartCheckout 
+      // Reset the handled flag for this new payment attempt
+      paymentHandledRef.current = false;
+
+      const itemProductIds = isCartCheckout
         ? cartItems.map(item => item.id || item._id)
         : [pid];
+
+      // Step 1: Create Razorpay order
+      log.push({ step: 'Creating Razorpay Order', time: new Date().toLocaleTimeString(), status: '⏳' });
 
       const orderAction = await dispatch(createOrder({
         userId,
@@ -204,67 +302,47 @@ export default function CheckoutPage() {
       if (createOrder.rejected.match(orderAction)) {
         throw new Error(orderAction.error.message || 'Failed to create payment order');
       }
-      const orderData = orderAction.payload;
 
-      const step1EndTime = new Date().toLocaleTimeString();
+      const orderData = orderAction.payload;
       log[0].status = '✅';
-      log.push({step: 'Opening Payment Gateway', time: step1EndTime, status: '✅'});
+      log.push({ step: 'Opening Payment Gateway', time: new Date().toLocaleTimeString(), status: '✅' });
 
       const options = {
         key: orderData.keyId,
         amount: orderData.amount,
         currency: orderData.currency,
         name: "Premium Store",
-        description: isCartCheckout 
-          ? `Cart Checkout - ${cartItems.length} items` 
+        description: isCartCheckout
+          ? `Cart Checkout - ${cartItems.length} items`
           : `Order Payment - ${product?.name || 'Product'}`,
         order_id: orderData.orderId,
         timeout: 600,
-        upi: {
-          flow: 'qr'
-        },
-        method: {
-          upi: true,
-          netbanking: true,
-          card: true,
-          wallet: true
-        },
-        
+        upi: { flow: 'qr' },
+        method: { upi: true, netbanking: true, card: true, wallet: true },
+
+        // ── handler: fires for card/netbanking/wallet (NOT always for UPI QR) ──
         handler: async function (response: any) {
           try {
-            // Step 2: Payment Completed
-            const step2Time = new Date().toLocaleTimeString();
-            log.push({step: 'Payment Completed by User', time: step2Time, status: '✅'});
-            log.push({step: 'Verifying Payment Signature', time: step2Time, status: '⏳'});
+            console.log('🎯 ====== HANDLER FIRED ======');
+            console.log('🎯 Payment handler triggered', response);
 
-            // Step 3: Verify signature (with retry for network delays)
+            // Mark as handled so onclose skips processing
+            paymentHandledRef.current = true;
+            console.log('🎯 Set paymentHandledRef to TRUE');
+
+            log.push({ step: 'Payment Completed', time: new Date().toLocaleTimeString(), status: '✅' });
+            log.push({ step: 'Verifying Signature', time: new Date().toLocaleTimeString(), status: '⏳' });
+
+            // Verify signature with retries
             let verifyAction;
-            let verifyRetries = 0;
-            
-            while (verifyRetries < 3) {
-              try {
-                verifyAction = await dispatch(verifyPayment({
-                  razorpay_order_id: response.razorpay_order_id,
-                  razorpay_payment_id: response.razorpay_payment_id,
-                  razorpay_signature: response.razorpay_signature
-                }));
-                
-                if (verifyPayment.fulfilled.match(verifyAction)) {
-                  break; // Success
-                } else {
-                  verifyRetries++;
-                  if (verifyRetries < 3) {
-                    await new Promise(resolve => setTimeout(resolve, 2000)); // Retry after 2s
-                  }
-                }
-              } catch (error) {
-                verifyRetries++;
-                if (verifyRetries < 3) {
-                  await new Promise(resolve => setTimeout(resolve, 2000));
-                } else {
-                  throw error;
-                }
-              }
+            for (let i = 0; i < 3; i++) {
+              verifyAction = await dispatch(verifyPayment({
+                razorpay_order_id: response.razorpay_order_id,
+                razorpay_payment_id: response.razorpay_payment_id,
+                razorpay_signature: response.razorpay_signature
+              }));
+              if (verifyPayment.fulfilled.match(verifyAction)) break;
+              if (i < 2) await new Promise(r => setTimeout(r, 2000));
             }
 
             if (!verifyPayment.fulfilled.match(verifyAction)) {
@@ -272,9 +350,9 @@ export default function CheckoutPage() {
             }
 
             log[log.length - 1].status = '✅';
-            log.push({step: 'Saving Payment Details', time: step2Time, status: '⏳'});
+            log.push({ step: 'Saving Payment', time: new Date().toLocaleTimeString(), status: '⏳' });
 
-            // Step 4: Save Payment
+            // Save payment
             const saveAction = await dispatch(savePayment({
               razorpay_order_id: response.razorpay_order_id,
               razorpay_payment_id: response.razorpay_payment_id,
@@ -286,197 +364,131 @@ export default function CheckoutPage() {
               paymentMethod: 'razorpay'
             }));
 
-            const step3Time = new Date().toLocaleTimeString();
-            
-            if (savePayment.fulfilled.match(saveAction)) {
-              log[log.length - 1].status = '✅';
-              log.push({step: 'Creating Order Record', time: step3Time, status: '⏳'});
+            if (!savePayment.fulfilled.match(saveAction)) {
+              throw new Error('Failed to save payment record');
+            }
 
-              if (isCartCheckout) {
-                const bulkResult = await createBulkUserProduct();
-                if (bulkResult.success) {
-                  log[log.length - 1].status = '✅';
-                  
-                  setOrderDetails({
-                    paymentId: response.razorpay_payment_id,
-                    orderId: orderData.orderId,
-                    amount: total,
-                    paymentMethod: 'Razorpay',
-                    timeline: log,
-                    productName: `${cartItems.length} Items`,
-                    productImage: undefined
-                  });
-                  setShowSuccessModal(true);
-                  
-                  // Redirect to profile after 2 seconds
-                  setTimeout(() => {
-                    window.location.href = '/profile';
-                  }, 2000);
-                } else {
-                  throw new Error('Failed to create bulk order');
-                }
-              } else {
-                // Check if product already ordered BEFORE calling createUserProduct
-                const existingOrder = await checkIfProductOrdered(pid, userId);
-                
-                if (existingOrder) {
-                  // Product already exists - just update count via API
-                  const updateResponse = await fetch('/api/user-product', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                      product_name: product?.name,
-                      user_product_description: product?.description,
-                      user_product_price: product?.price,
-                      user_product_category: product?.category,
-                      user_product_item_id: pid,
-                      user_product_imageUrl: product?.imageUrl,
-                    })
-                  });
-                  
-                  const updateData = await updateResponse.json();
-                  
-                  if (updateData.success) {
-                    log[log.length - 1].status = '✅';
-                    console.log('✅ Product quantity updated (already ordered)');
-                  }
-                } else {
-                  // Product doesn't exist - create new order
-                  const productResult = await dispatch(createUserProduct({
-                    product_name: product?.name,
-                    user_product_description: product?.description,
-                    user_product_price: product?.price,
-                    user_product_category: product?.category,
-                    user_product_item_id: pid,
-                    user_product_imageUrl: product?.imageUrl,
-                  }));
-                  
-                  if (createUserProduct.fulfilled.match(productResult)) {
-                    log[log.length - 1].status = '✅';
-                    console.log('✅ New order created');
-                  } else {
-                    throw new Error('Failed to create order');
-                  }
-                }
-                
-                setOrderDetails({
-                  paymentId: response.razorpay_payment_id,
-                  orderId: orderData.orderId,
-                  amount: total,
-                  paymentMethod: 'Razorpay',
-                  timeline: log,
-                  productName: product?.name,
-                  productImage: product?.imageUrl
-                });
-                setShowSuccessModal(true);
+            log[log.length - 1].status = '✅';
+            log.push({ step: 'Creating Order Record', time: new Date().toLocaleTimeString(), status: '⏳' });
+
+            // Finalize the order
+            await finalizeOrder(userId, log, response.razorpay_payment_id, orderData.orderId);
+            console.log('🎯 Handler finalization complete');
+
+          } catch (error) {
+            console.error('🎯 Payment handler error:', error);
+            alert(`❌ Error completing order: ${error}`);
+          } finally {
+            console.log('🎯 Handler finally block - setting isProcessing false');
+            setIsProcessing(false);
+          }
+        },
+
+        // ── onclose: fires when user closes modal OR after UPI QR payment ──────
+        modal: {
+          onclose: async function () {
+            console.log('🔴 Modal closed. paymentHandled:', paymentHandledRef.current);
+            console.log('🔴 About to poll for payment status...');
+
+            // If handler() already ran, do nothing
+            if (paymentHandledRef.current) {
+              console.log('🔴 Handler already fired, skipping polling');
+              setIsProcessing(false);
+              return;
+            }
+
+            console.log('🔴 Starting polling for UPI/async payment confirmation...');
+            console.log('🔴 Order ID:', orderData.orderId);
+
+            // Poll the payment-status API (which checks Razorpay directly)
+            const confirmed = await pollPaymentStatus(orderData.orderId, userId);
+            console.log('🔴 Poll result:', confirmed);
+
+            if (confirmed) {
+              try {
+                const log = [
+                  { step: 'Payment Confirmed (UPI/QR)', time: new Date().toLocaleTimeString(), status: '✅' },
+                  { step: 'Creating Order Record', time: new Date().toLocaleTimeString(), status: '⏳' }
+                ];
+
+                // Save the payment record in your DB
+                await dispatch(savePayment({
+                  razorpay_order_id: orderData.orderId,
+                  razorpay_payment_id: 'qr_async',
+                  razorpay_signature: '',
+                  userId: orderData.userId,
+                  item_product_ids: itemProductIds,
+                  cartItems: isCartCheckout ? cartItems : undefined,
+                  amount: orderData.paymentAmount,
+                  paymentMethod: 'razorpay'
+                }));
+
+                // Finalize the order
+                await finalizeOrder(userId, log, 'qr_payment', orderData.orderId);
+
+              } catch (err) {
+                console.error('Order finalization error after QR payment:', err);
+                alert('Payment succeeded but order creation failed. Please contact support with order ID: ' + orderData.orderId);
               }
             } else {
-              alert(`❌ Payment verification failed!\n\nIf amount was deducted, please contact support.`);
+              // Payment not confirmed — user may have closed without paying
+              alert('⏳ Payment not confirmed.\n\nIf money was deducted, it will reflect in your profile within a few minutes.');
             }
-          } catch (error) {
-            console.error('Payment handler error:', error);
-            alert(`❌ Error: ${error}`);
-          } finally {
-            if (paymentTimeout) clearTimeout(paymentTimeout);
+
             setIsProcessing(false);
           }
         },
-        
-        modal: {
-          onclose: async function() {
-            console.log('Payment modal closed - checking payment status');
-            
-            // Poll for payment status since webhook might be delayed
-            let pollAttempts = 0;
-            const maxPolls = 12; // Poll up to 60 seconds (5s interval)
-            let paymentConfirmed = false;
-            
-            while (pollAttempts < maxPolls && !paymentConfirmed) {
-              try {
-                const response = await fetch(`/api/payment-status?orderId=${orderData.orderId}`);
-                const data = await response.json();
-                
-                if (data.paymentCompleted) {
-                  console.log('✅ Payment confirmed in database');
-                  paymentConfirmed = true;
-                  setShowSuccessModal(true);
-                  setOrderDetails({
-                    paymentId: 'pending_webhook',
-                    orderId: orderData.orderId,
-                    amount: total,
-                    paymentMethod: 'Razorpay',
-                    timeline: [],
-                    productName: isCartCheckout ? `${cartItems.length} Items` : product?.name,
-                    productImage: isCartCheckout ? undefined : product?.imageUrl
-                  });
-                  setTimeout(() => window.location.href = '/profile', 2000);
-                  break;
-                }
-                
-                pollAttempts++;
-                if (pollAttempts < maxPolls) {
-                  await new Promise(resolve => setTimeout(resolve, 5000)); // Wait 5s before next poll
-                }
-              } catch (error) {
-                console.error('Poll error:', error);
-                pollAttempts++;
-                if (pollAttempts < maxPolls) {
-                  await new Promise(resolve => setTimeout(resolve, 5000));
-                }
-              }
-            }
-            
-            if (!paymentConfirmed) {
-              console.warn('Payment status unclear after polling');
-              alert('⏳ Payment processing...\n\nIf deducted, it will be confirmed shortly. Check your profile.');
-            }
-            
-            if (paymentTimeout) clearTimeout(paymentTimeout);
-            setIsProcessing(false);
-          }
-        },
-      
+
         prefill: {
           name: session?.user?.name || "",
           email: session?.user?.email || "",
           contact: formData.phone
         },
-        
+
         notes: {
           order_type: isCartCheckout ? 'cart' : 'single_product',
           products: isCartCheckout ? cartItems.length : 1
         }
-      
       };
 
       // @ts-ignore
-      if (typeof window.Razorpay !== 'undefined') {
-        // @ts-ignore
-        const rzp = new window.Razorpay(options);
-        rzp.open();
-      } else {
+      if (typeof window.Razorpay === 'undefined') {
         throw new Error('Razorpay SDK not loaded');
       }
+
+      // @ts-ignore
+      const rzp = new window.Razorpay(options);
+
+      console.log('🔴 ====== RAZORPAY MODAL OPENING ======');
+      console.log('🔴 Order ID:', orderData.orderId);
+
+      // Handle payment failures (card declined, UPI failure etc.)
+      rzp.on('payment.failed', function (response: any) {
+        console.error('🔴 ====== PAYMENT FAILED EVENT ======');
+        console.error('Payment failed:', response.error);
+        paymentHandledRef.current = true; // prevent onclose from polling
+        alert(`❌ Payment failed: ${response.error.description}`);
+        setIsProcessing(false);
+      });
+
+      console.log('🔴 Calling rzp.open()...');
+      rzp.open();
+      console.log('🔴 rzp.open() called');
+
     } catch (error) {
-      if (paymentTimeout) clearTimeout(paymentTimeout);
       console.error('Razorpay payment error:', error);
-      
-      const errorMessage = error instanceof Error ? error.message : String(error);
-      alert(`❌ Payment failed: ${errorMessage}\n\nIf amount was deducted, please contact support.`);
+      alert(`❌ Payment failed: ${error instanceof Error ? error.message : String(error)}`);
       setIsProcessing(false);
     }
   };
 
   const handlepayment = async (userId: string) => {
     try {
-      const log: Array<{step: string, time: string, status: string}> = [];
-      
-      // Step 1
-      const step1Time = new Date().toLocaleTimeString();
-      log.push({step: 'Creating COD Order', time: step1Time, status: '⏳'});
+      const log: Array<{ step: string; time: string; status: string }> = [];
 
-      // Get all product IDs for cart or single product
-      const itemProductIds = isCartCheckout 
+      log.push({ step: 'Creating COD Order', time: new Date().toLocaleTimeString(), status: '⏳' });
+
+      const itemProductIds = isCartCheckout
         ? cartItems.map(item => item.id || item._id)
         : [pid];
 
@@ -491,12 +503,10 @@ export default function CheckoutPage() {
       if (createOrder.rejected.match(orderAction)) {
         throw new Error(orderAction.error.message || 'Failed to create COD order');
       }
+
       const data = orderAction.payload;
-
-      const step1EndTime = new Date().toLocaleTimeString();
       log[0].status = '✅';
-      log.push({step: 'Saving Payment Details', time: step1EndTime, status: '⏳'});
-
+      log.push({ step: 'Saving Payment Details', time: new Date().toLocaleTimeString(), status: '⏳' });
 
       const saveAction = await dispatch(savePayment({
         paymentMethod: 'cod',
@@ -507,89 +517,72 @@ export default function CheckoutPage() {
         amount: data.paymentAmount
       }));
 
-      const step2Time = new Date().toLocaleTimeString();
-      
-      if (savePayment.fulfilled.match(saveAction)) {
-        log[log.length - 1].status = '✅';
-        log.push({step: 'Creating Order Record', time: step2Time, status: '⏳'});
+      if (!savePayment.fulfilled.match(saveAction)) {
+        throw new Error('Failed to save payment');
+      }
 
-        if (isCartCheckout) {
-          const bulkResult = await createBulkUserProduct();
-          if (bulkResult.success) {
-            log[log.length - 1].status = '✅';
-            
-            setOrderDetails({
-              orderId: data.orderId,
-              amount: total,
-              paymentMethod: 'Cash on Delivery',
-              timeline: log,
-              productName: `${cartItems.length} Items`,
-              productImage: undefined
-            });
-            setShowSuccessModal(true);
-            
-            setTimeout(() => {
-              window.location.href = '/profile';
-            }, 2000);
-          } else {
-            throw new Error('Failed to create bulk order');
-          }
-        } else {
-          // Check if product already ordered BEFORE calling createUserProduct
-          const existingOrder = await checkIfProductOrdered(pid, userId);
-          
-          if (existingOrder) {
-            // Product already exists - just update count
-            const updateResponse = await fetch('/api/user-product', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                product_name: product?.name,
-                user_product_description: product?.description,
-                user_product_price: product?.price,
-                user_product_category: product?.category,
-                user_product_item_id: pid,
-                user_product_imageUrl: product?.imageUrl,
-              })
-            });
-            
-            const updateData = await updateResponse.json();
-            
-            if (updateData.success) {
-              log[log.length - 1].status = '✅';
-              console.log('✅ Product quantity updated (already ordered)');
-            }
-          } else {
-            // Product doesn't exist - create new order
-            const productResult = await dispatch(createUserProduct({
+      log[log.length - 1].status = '✅';
+      log.push({ step: 'Creating Order Record', time: new Date().toLocaleTimeString(), status: '⏳' });
+
+      if (isCartCheckout) {
+        const bulkResult = await createBulkUserProduct();
+        if (!bulkResult.success) throw new Error('Failed to create bulk order');
+
+        log[log.length - 1].status = '✅';
+        setOrderDetails({
+          orderId: data.orderId,
+          amount: total,
+          paymentMethod: 'Cash on Delivery',
+          timeline: log,
+          productName: `${cartItems.length} Items`,
+          productImage: undefined
+        });
+        setShowSuccessModal(true);
+        setTimeout(() => { window.location.href = '/profile'; }, 2000);
+
+      } else {
+        const existingOrder = await checkIfProductOrdered(pid, userId);
+
+        if (existingOrder) {
+          await fetch('/api/user-product', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
               product_name: product?.name,
               user_product_description: product?.description,
               user_product_price: product?.price,
               user_product_category: product?.category,
               user_product_item_id: pid,
               user_product_imageUrl: product?.imageUrl,
-            }));
-            
-            if (createUserProduct.fulfilled.match(productResult)) {
-              log[log.length - 1].status = '✅';
-              console.log('✅ New order created');
-            } else {
-              throw new Error('Failed to create order');
-            }
-          }
-
-          setOrderDetails({
-            orderId: data.orderId,
-            amount: total,
-            paymentMethod: 'Cash on Delivery',
-            timeline: log,
-            productName: product?.name,
-            productImage: product?.imageUrl
+            })
           });
-          setShowSuccessModal(true);
+          console.log('✅ Product quantity updated');
+        } else {
+          const productResult = await dispatch(createUserProduct({
+            product_name: product?.name,
+            user_product_description: product?.description,
+            user_product_price: product?.price,
+            user_product_category: product?.category,
+            user_product_item_id: pid,
+            user_product_imageUrl: product?.imageUrl,
+          }));
+
+          if (!createUserProduct.fulfilled.match(productResult)) {
+            throw new Error('Failed to create order');
+          }
+          console.log('✅ New order created');
         }
-      } else {
-        throw new Error('Failed to save payment');
+
+        log[log.length - 1].status = '✅';
+        setOrderDetails({
+          orderId: data.orderId,
+          amount: total,
+          paymentMethod: 'Cash on Delivery',
+          timeline: log,
+          productName: product?.name,
+          productImage: product?.imageUrl
+        });
+        setShowSuccessModal(true);
       }
     } catch (error) {
       console.error('COD order error:', error);
@@ -621,9 +614,8 @@ export default function CheckoutPage() {
       const userId = session.user.id;
 
       if (selectedPaymentMethod === 'razorpay') {
-        // Don't await - Razorpay handler manages the flow
         await handleRazorpayPayment(userId);
-        // isProcessing is set to false in the handler/modal dismiss
+        // isProcessing is managed inside handleRazorpayPayment / its callbacks
       } else if (selectedPaymentMethod === 'cod') {
         await handlepayment(userId);
         setIsProcessing(false);
@@ -653,14 +645,13 @@ export default function CheckoutPage() {
 
   return (
     <div className="min-h-screen bg-muted">
-      {/* Success Modal Component */}
-      <OrderSuccessModal 
+      <OrderSuccessModal
         show={showSuccessModal}
         orderDetails={orderDetails}
         onClose={() => setShowSuccessModal(false)}
       />
 
-      {/* Header Section */}
+      {/* Header */}
       <div className="bg-card border-b border-border shadow-sm">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
           <div className="flex items-center gap-3 mb-4">
@@ -669,8 +660,7 @@ export default function CheckoutPage() {
             </div>
             <h1 className="text-2xl font-bold text-foreground">Secure Checkout</h1>
           </div>
-          
-          {/* Progress Steps */}
+
           <div className="flex items-center gap-2 text-sm">
             <div className="flex items-center gap-2">
               <div className="w-8 h-8 rounded-full bg-success flex items-center justify-center">
@@ -680,16 +670,12 @@ export default function CheckoutPage() {
             </div>
             <div className="w-12 h-0.5 bg-success"></div>
             <div className="flex items-center gap-2">
-              <div className="w-8 h-8 rounded-full bg-primary text-primary-foreground font-semibold flex items-center justify-center text-sm">
-                2
-              </div>
+              <div className="w-8 h-8 rounded-full bg-primary text-primary-foreground font-semibold flex items-center justify-center text-sm">2</div>
               <span className="text-foreground font-medium hidden sm:inline">Checkout</span>
             </div>
             <div className="w-12 h-0.5 bg-muted"></div>
             <div className="flex items-center gap-2">
-              <div className="w-8 h-8 rounded-full bg-muted text-muted-foreground font-semibold flex items-center justify-center text-sm">
-                3
-              </div>
+              <div className="w-8 h-8 rounded-full bg-muted text-muted-foreground font-semibold flex items-center justify-center text-sm">3</div>
               <span className="text-muted-foreground hidden sm:inline">Complete</span>
             </div>
           </div>
@@ -699,7 +685,7 @@ export default function CheckoutPage() {
       {/* Main Content */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <div className="grid lg:grid-cols-3 gap-8">
-          {/* Left Column - Forms */}
+          {/* Left Column */}
           <div className="lg:col-span-2 space-y-6">
             {/* Product Details */}
             <div className="bg-card rounded-2xl shadow-sm border border-border overflow-hidden">
@@ -724,11 +710,7 @@ export default function CheckoutPage() {
                       <div key={item.id || item._id} className="flex gap-4 p-4 bg-muted rounded-lg border border-border">
                         <div className="w-20 h-20 bg-muted rounded-lg overflow-hidden flex-shrink-0">
                           {item.user_product_imageUrl ? (
-                            <img
-                              src={item.user_product_imageUrl}
-                              alt={item.product_name}
-                              className="w-full h-full object-cover"
-                            />
+                            <img src={item.user_product_imageUrl} alt={item.product_name} className="w-full h-full object-cover" />
                           ) : (
                             <div className="w-full h-full flex items-center justify-center text-muted-foreground font-bold">
                               {item.product_name?.charAt(0) || 'P'}
@@ -749,13 +731,8 @@ export default function CheckoutPage() {
                 ) : product ? (
                   <div className="flex flex-col md:flex-row gap-6">
                     <div className="w-full md:w-64 h-64 bg-muted rounded-xl overflow-hidden flex-shrink-0 mx-auto md:mx-0 border border-border">
-                      <img
-                        src={product.imageUrl}
-                        alt={product.name}
-                        className="w-full h-full object-cover"
-                      />
+                      <img src={product.imageUrl} alt={product.name} className="w-full h-full object-cover" />
                     </div>
-
                     <div className="flex-1 space-y-4">
                       <div>
                         <div className="inline-block bg-primary/10 text-primary text-xs font-semibold px-3 py-1 rounded-full mb-2">
@@ -764,7 +741,6 @@ export default function CheckoutPage() {
                         <h3 className="text-xl font-bold text-foreground mb-2">{product.name}</h3>
                         <p className="text-sm text-muted-foreground leading-relaxed">{product.description}</p>
                       </div>
-
                       {product.reason && (
                         <div className="bg-primary/10 border border-primary/30 rounded-lg p-3">
                           <p className="text-sm text-primary">
@@ -772,7 +748,6 @@ export default function CheckoutPage() {
                           </p>
                         </div>
                       )}
-
                       <div className="pt-2">
                         <div className="bg-muted rounded-lg px-4 py-2 border border-border inline-block">
                           <p className="text-xs text-muted-foreground mb-1">Price</p>
@@ -799,85 +774,61 @@ export default function CheckoutPage() {
                 </div>
               </div>
 
-              <div className="p-6">
-                <div className="space-y-5">
-                  <div>
-                    <label className="block text-sm font-medium text-muted-foreground mb-2">
-                      Phone Number <span className="text-destructive">*</span>
-                    </label>
-                    <div className="relative">
-                      <Phone className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
-                      <input
-                        type="tel"
-                        name="phone"
-                        value={formData.phone}
-                        onChange={handleInputChange}
-                        required
-                        className="w-full pl-11 pr-4 py-3 rounded-lg border border-border bg-card text-foreground focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all outline-none placeholder-muted-foreground"
-                        placeholder="+91 98765 43210"
-                      />
-                    </div>
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-medium text-muted-foreground mb-2">
-                      Street Address <span className="text-destructive">*</span>
-                    </label>
+              <div className="p-6 space-y-5">
+                <div>
+                  <label className="block text-sm font-medium text-muted-foreground mb-2">
+                    Phone Number <span className="text-destructive">*</span>
+                  </label>
+                  <div className="relative">
+                    <Phone className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
                     <input
-                      type="text"
-                      name="address"
-                      value={formData.address}
+                      type="tel"
+                      name="phone"
+                      value={formData.phone}
                       onChange={handleInputChange}
                       required
-                      className="w-full px-4 py-3 rounded-lg border border-border bg-card text-foreground focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all outline-none placeholder-muted-foreground"
-                      placeholder="123 Main Street, Apartment 4B"
+                      className="w-full pl-11 pr-4 py-3 rounded-lg border border-border bg-card text-foreground focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all outline-none placeholder-muted-foreground"
+                      placeholder="+91 98765 43210"
                     />
                   </div>
+                </div>
 
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                    <div>
+                <div>
+                  <label className="block text-sm font-medium text-muted-foreground mb-2">
+                    Street Address <span className="text-destructive">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    name="address"
+                    value={formData.address}
+                    onChange={handleInputChange}
+                    required
+                    className="w-full px-4 py-3 rounded-lg border border-border bg-card text-foreground focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all outline-none placeholder-muted-foreground"
+                    placeholder="123 Main Street, Apartment 4B"
+                  />
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                  {[
+                    { name: 'city', label: 'City', placeholder: 'Mumbai' },
+                    { name: 'state', label: 'State', placeholder: 'Maharashtra' },
+                    { name: 'pincode', label: 'PIN Code', placeholder: '400001' }
+                  ].map(field => (
+                    <div key={field.name}>
                       <label className="block text-sm font-medium text-muted-foreground mb-2">
-                        City <span className="text-destructive">*</span>
+                        {field.label} <span className="text-destructive">*</span>
                       </label>
                       <input
                         type="text"
-                        name="city"
-                        value={formData.city}
+                        name={field.name}
+                        value={formData[field.name as keyof typeof formData]}
                         onChange={handleInputChange}
                         required
                         className="w-full px-4 py-3 rounded-lg border border-border bg-card text-foreground focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all outline-none placeholder-muted-foreground"
-                        placeholder="Mumbai"
+                        placeholder={field.placeholder}
                       />
                     </div>
-                    <div>
-                      <label className="block text-sm font-medium text-muted-foreground mb-2">
-                        State <span className="text-destructive">*</span>
-                      </label>
-                      <input
-                        type="text"
-                        name="state"
-                        value={formData.state}
-                        onChange={handleInputChange}
-                        required
-                        className="w-full px-4 py-3 rounded-lg border border-border bg-card text-foreground focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all outline-none placeholder-muted-foreground"
-                        placeholder="Maharashtra"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-muted-foreground mb-2">
-                        PIN Code <span className="text-destructive">*</span>
-                      </label>
-                      <input
-                        type="text"
-                        name="pincode"
-                        value={formData.pincode}
-                        onChange={handleInputChange}
-                        required
-                        className="w-full px-4 py-3 rounded-lg border border-border bg-card text-foreground focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all outline-none placeholder-muted-foreground"
-                        placeholder="400001"
-                      />
-                    </div>
-                  </div>
+                  ))}
                 </div>
               </div>
             </div>
@@ -900,18 +851,14 @@ export default function CheckoutPage() {
                 </div>
 
                 <div className="p-6 space-y-6">
-                  {/* Product Item(s) */}
+                  {/* Items */}
                   {isCartCheckout ? (
                     <div className="space-y-3 pb-6 border-b border-border max-h-64 overflow-y-auto">
                       {cartItems.map((item) => (
                         <div key={item.id || item._id} className="flex gap-3">
                           <div className="w-16 h-16 bg-muted rounded-lg overflow-hidden flex-shrink-0 border border-border">
                             {item.user_product_imageUrl ? (
-                              <img
-                                src={item.user_product_imageUrl}
-                                alt={item.product_name}
-                                className="w-full h-full object-cover"
-                              />
+                              <img src={item.user_product_imageUrl} alt={item.product_name} className="w-full h-full object-cover" />
                             ) : (
                               <div className="w-full h-full flex items-center justify-center text-muted-foreground font-bold">
                                 {item.product_name?.charAt(0) || 'P'}
@@ -919,15 +866,10 @@ export default function CheckoutPage() {
                             )}
                           </div>
                           <div className="flex-1 min-w-0">
-                            <h3 className="font-semibold text-foreground text-sm mb-1 line-clamp-2">
-                              {item.product_name}
-                            </h3>
+                            <h3 className="font-semibold text-foreground text-sm mb-1 line-clamp-2">{item.product_name}</h3>
                             <div className="flex items-center justify-between">
                               <span className="text-xs text-muted-foreground">Qty: {item.user_product_cart_count}</span>
-                              <span className="font-bold text-success text-sm">
-                                ₹{(item.user_product_price * item.user_product_cart_count).toLocaleString()
-                                }
-                              </span>
+                              <span className="font-bold text-success text-sm">₹{(item.user_product_price * item.user_product_cart_count).toLocaleString()}</span>
                             </div>
                           </div>
                         </div>
@@ -936,22 +878,14 @@ export default function CheckoutPage() {
                   ) : product ? (
                     <div className="flex gap-4 pb-6 border-b border-border">
                       <div className="w-20 h-20 bg-muted rounded-lg overflow-hidden flex-shrink-0 border border-border">
-                        <img
-                          src={product.imageUrl}
-                          alt={product.name}
-                          className="w-full h-full object-cover"
-                        />
+                        <img src={product.imageUrl} alt={product.name} className="w-full h-full object-cover" />
                       </div>
                       <div className="flex-1 min-w-0">
-                        <h3 className="font-semibold text-foreground text-sm mb-1 line-clamp-2 leading-tight">
-                          {product.name}
-                        </h3>
+                        <h3 className="font-semibold text-foreground text-sm mb-1 line-clamp-2 leading-tight">{product.name}</h3>
                         <p className="text-xs text-muted-foreground mb-2">{product.category}</p>
                         <div className="flex items-center justify-between">
                           <span className="text-xs text-muted-foreground bg-muted px-2 py-1 rounded">Qty: 1</span>
-                          <span className="font-bold text-success">
-                            ₹{product.price.toLocaleString()}
-                          </span>
+                          <span className="font-bold text-success">₹{product.price.toLocaleString()}</span>
                         </div>
                       </div>
                     </div>
@@ -965,47 +899,35 @@ export default function CheckoutPage() {
                     </div>
                     <div className="flex justify-between items-center text-sm">
                       <span className="text-muted-foreground flex items-center gap-2">
-                        <Truck className="w-4 h-4" />
-                        Shipping
+                        <Truck className="w-4 h-4" /> Shipping
                       </span>
                       <span className="text-success font-semibold">FREE</span>
                     </div>
                     <div className="border-t border-border pt-3">
                       <div className="flex justify-between items-center">
                         <span className="text-foreground font-semibold text-lg">Total</span>
-                        <span className="text-2xl font-bold text-primary">
-                          ₹{total.toLocaleString()}
-                        </span>
+                        <span className="text-2xl font-bold text-primary">₹{total.toLocaleString()}</span>
                       </div>
                     </div>
                   </div>
 
-                  {/* Payment Method Selection */}
+                  {/* Payment Method */}
                   <div className="border-t border-border pt-6">
                     <h3 className="text-sm font-semibold text-foreground mb-4 flex items-center gap-2">
-                      <CreditCard className="w-4 h-4 text-primary" />
-                      Select Payment Method
+                      <CreditCard className="w-4 h-4 text-primary" /> Select Payment Method
                     </h3>
                     <div className="space-y-3">
-                      { [
+                      {[
                         { id: 'razorpay', name: 'Razorpay', desc: 'UPI, Cards, Banking, Wallets', icon: Wallet },
                         { id: 'cod', name: 'Cash on Delivery', desc: 'Pay when you receive', icon: Building2 }
                       ].map((method) => (
                         <div
                           key={method.id}
                           onClick={() => setSelectedPaymentMethod(method.id)}
-                          className={`p-4 rounded-lg border-2 cursor-pointer transition-all ${
-                            selectedPaymentMethod === method.id
-                              ? 'border-primary bg-primary/10'
-                              : 'border-border bg-card hover:border-primary/50'
-                          }`}
+                          className={`p-4 rounded-lg border-2 cursor-pointer transition-all ${selectedPaymentMethod === method.id ? 'border-primary bg-primary/10' : 'border-border bg-card hover:border-primary/50'}`}
                         >
                           <div className="flex items-start gap-3">
-                            <div className={`w-5 h-5 rounded-full border-2 mt-0.5 flex items-center justify-center flex-shrink-0 ${
-                              selectedPaymentMethod === method.id
-                                ? 'border-primary bg-primary'
-                                : 'border-border'
-                            }`}>
+                            <div className={`w-5 h-5 rounded-full border-2 mt-0.5 flex items-center justify-center flex-shrink-0 ${selectedPaymentMethod === method.id ? 'border-primary bg-primary' : 'border-border'}`}>
                               {selectedPaymentMethod === method.id && (
                                 <Check className="w-3 h-3 text-primary-foreground" strokeWidth={3} />
                               )}
@@ -1024,19 +946,17 @@ export default function CheckoutPage() {
                   {/* Trust Badges */}
                   <div className="flex items-center justify-center gap-4 pt-4 border-t border-border">
                     <div className="flex items-center gap-1 text-xs text-muted-foreground">
-                      <Lock className="w-3 h-3" />
-                      <span>SSL Secure</span>
+                      <Lock className="w-3 h-3" /><span>SSL Secure</span>
                     </div>
                     <div className="w-px h-4 bg-muted"></div>
                     <div className="flex items-center gap-1 text-xs text-muted-foreground">
-                      <Shield className="w-3 h-3" />
-                      <span>PCI Compliant</span>
+                      <Shield className="w-3 h-3" /><span>PCI Compliant</span>
                     </div>
                   </div>
                 </div>
               </div>
 
-              {/* Payment Button */}
+              {/* Pay Button */}
               <div className="bg-card rounded-2xl shadow-sm border border-border overflow-hidden">
                 <div className="p-6">
                   <div className="flex items-center justify-center gap-3 mb-4">
@@ -1045,27 +965,24 @@ export default function CheckoutPage() {
                       {selectedPaymentMethod === 'razorpay' ? 'Razorpay Payment' : 'Cash on Delivery'}
                     </span>
                   </div>
-                  
+
                   <p className="text-xs text-muted-foreground text-center mb-4">
-                    {selectedPaymentMethod === 'razorpay' 
+                    {selectedPaymentMethod === 'razorpay'
                       ? 'Secure payment via UPI, Cards, Net Banking & Wallets'
-                      : 'Pay in cash when your order is delivered'
-                    }
+                      : 'Pay in cash when your order is delivered'}
                   </p>
 
-                  <button 
+                  <button
                     onClick={handlePayment}
                     disabled={isProcessing}
-                    className={`w-full bg-gradient-to-r from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 text-white font-semibold py-4 rounded-lg transition-all duration-200 shadow-md hover:shadow-lg transform hover:-translate-y-0.5 ${
-                      isProcessing ? 'opacity-50 cursor-not-allowed' : ''
-                    }`}
+                    className={`w-full bg-gradient-to-r from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 text-white font-semibold py-4 rounded-lg transition-all duration-200 shadow-md hover:shadow-lg transform hover:-translate-y-0.5 ${isProcessing ? 'opacity-50 cursor-not-allowed' : ''}`}
                   >
                     {isProcessing ? (
                       <span className="flex items-center justify-center gap-2">
                         <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
                         Processing...
                       </span>
-                    ) : selectedPaymentMethod === 'razorpay' 
+                    ) : selectedPaymentMethod === 'razorpay'
                       ? `Pay ₹${total.toLocaleString()} Securely`
                       : `Place Order - ₹${total.toLocaleString()}`
                     }
@@ -1076,8 +993,7 @@ export default function CheckoutPage() {
                     <p className="text-xs text-muted-foreground leading-relaxed">
                       {selectedPaymentMethod === 'razorpay'
                         ? '256-bit SSL encrypted. Your payment information is secure.'
-                        : 'Your order is secure. Pay only when you receive your product.'
-                      }
+                        : 'Your order is secure. Pay only when you receive your product.'}
                     </p>
                   </div>
                 </div>
@@ -1089,5 +1005,3 @@ export default function CheckoutPage() {
     </div>
   );
 }
-
-
