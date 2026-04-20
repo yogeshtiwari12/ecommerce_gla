@@ -5,7 +5,6 @@ import bcrypt from "bcryptjs";
 import {prisma} from "@/app/lib/prisma";
 
 export const authOptions: NextAuthOptions = {
-
   providers: [
     CredentialsProvider({
       name: "Credentials",
@@ -38,7 +37,6 @@ export const authOptions: NextAuthOptions = {
           if (credentials.role && credentials.role !== user.role) {
             throw new Error("Selected role does not match your account");
           }
-
 
           if (user.role !== 'user') {
             if (!credentials.employeeId) {
@@ -90,15 +88,19 @@ export const authOptions: NextAuthOptions = {
   },
   session: {
     strategy: "jwt",
-    maxAge: 24 * 60 * 60, // 24 hours - industry standard for e-commerce
-    updateAge: 2 * 60 * 60, // Refresh every 2 hours for active users
+    maxAge: 24 * 60 * 60,
+    updateAge: 2 * 60 * 60,
   },
   jwt: {
-    maxAge: 24 * 60 * 60, // 24 hours - matches session duration
+    maxAge: 24 * 60 * 60,
   },
-  secret: process.env.NEXTAUTH_SECRET || (() => {
-    throw new Error("NEXTAUTH_SECRET is not set in environment variables");
-  })(),
+  secret: process.env.NEXTAUTH_SECRET,
+  events: {
+    async signIn({ user, account, isNewUser }) {
+      console.log("✅ User signed in:", user.email);
+    },
+    async session({ session }) {
+      console.log("✅ Session created for:", (session as any).user?.email);
+    },
+  },
 };
-
-

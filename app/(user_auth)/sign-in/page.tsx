@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -19,20 +19,17 @@ import { toast } from "sonner";
 
 const SignInPage = () => {
   const router = useRouter();
-  const searchParams = useSearchParams();
-  const callbackUrl = searchParams.get("callbackUrl") || "/profile";
-  
   const { data: session, status } = useSession();
   const [formData, setFormData] = useState({ email: "codekro8@gmail.com", password: "12345678" });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
-  // If user is already authenticated, redirect to callback URL
+  // Redirect if already authenticated
   useEffect(() => {
     if (status === "authenticated" && session?.user) {
-      router.replace(callbackUrl);
+      router.push("/profile");
     }
-  }, [status, session, router, callbackUrl]);
+  }, [status, session, router]);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setFormData({ ...formData, [e.target.name]: e.target.value });
@@ -52,29 +49,37 @@ const SignInPage = () => {
     }
 
     try {
-      // Use NextAuth's built-in redirect mechanism
-      const res = await signIn("credentials", {
+      // Simple sign in - let NextAuth handle everything
+      const result = await signIn("credentials", {
         email,
         password,
-        redirect: true,
-        callbackUrl: callbackUrl,
+        redirect: false,
       });
 
-      // If we get here, something went wrong
-      if (!res?.ok) {
-        const errorMessage = res?.error || "Sign in failed. Please check your credentials.";
-        setError(errorMessage);
-        toast.error(errorMessage);
+      if (result?.error) {
+        setError(result.error);
+        toast.error(result.error);
         setLoading(false);
+      } else if (result?.ok) {
+        toast.success("Sign in successful!");
+        setFormData({ email: "", password: "" });
+        // NextAuth will handle session update, wait then redirect
+        setTimeout(() => {
+          router.push("/profile");
+        }, 1000);
       }
       
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : "An unexpected error occurred";
-      toast.error(errorMessage);
       setError(errorMessage);
+      toast.error(errorMessage);
       setLoading(false);
     }
   };
+
+  if (status === "loading") {
+    return <div className="flex items-center justify-center min-h-screen">Loading...</div>;
+  }
 
   return (
     <div className="min-h-screen bg-background flex items-center justify-center">
