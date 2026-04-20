@@ -237,15 +237,38 @@ export default function CheckoutPage() {
             log.push({step: 'Payment Completed by User', time: step2Time, status: '✅'});
             log.push({step: 'Verifying Payment Signature', time: step2Time, status: '⏳'});
 
-            // Step 3: Verify signature
-            const verifyAction = await dispatch(verifyPayment({
-              razorpay_order_id: response.razorpay_order_id,
-              razorpay_payment_id: response.razorpay_payment_id,
-              razorpay_signature: response.razorpay_signature
-            }));
+            // Step 3: Verify signature (with retry for network delays)
+            let verifyAction;
+            let verifyRetries = 0;
+            
+            while (verifyRetries < 3) {
+              try {
+                verifyAction = await dispatch(verifyPayment({
+                  razorpay_order_id: response.razorpay_order_id,
+                  razorpay_payment_id: response.razorpay_payment_id,
+                  razorpay_signature: response.razorpay_signature
+                }));
+                
+                if (verifyPayment.fulfilled.match(verifyAction)) {
+                  break; // Success
+                } else {
+                  verifyRetries++;
+                  if (verifyRetries < 3) {
+                    await new Promise(resolve => setTimeout(resolve, 2000)); // Retry after 2s
+                  }
+                }
+              } catch (error) {
+                verifyRetries++;
+                if (verifyRetries < 3) {
+                  await new Promise(resolve => setTimeout(resolve, 2000));
+                } else {
+                  throw error;
+                }
+              }
+            }
 
             if (!verifyPayment.fulfilled.match(verifyAction)) {
-              throw new Error('Payment signature verification failed');
+              throw new Error('Payment signature verification failed after retries');
             }
 
             log[log.length - 1].status = '✅';
@@ -360,8 +383,54 @@ export default function CheckoutPage() {
         },
         
         modal: {
-          onclose: function() {
-            console.log('Payment modal closed');
+          onclose: async function() {
+            console.log('Payment modal closed - checking payment status');
+            
+            // Poll for payment status since webhook might be delayed
+            let pollAttempts = 0;
+            const maxPolls = 12; // Poll up to 60 seconds (5s interval)
+            let paymentConfirmed = false;
+            
+            while (pollAttempts < maxPolls && !paymentConfirmed) {
+              try {
+                const response = await fetch(`/api/payment-status?orderId=${orderData.orderId}`);
+                const data = await response.json();
+                
+                if (data.paymentCompleted) {
+                  console.log('✅ Payment confirmed in database');
+                  paymentConfirmed = true;
+                  setShowSuccessModal(true);
+                  setOrderDetails({
+                    paymentId: 'pending_webhook',
+                    orderId: orderData.orderId,
+                    amount: total,
+                    paymentMethod: 'Razorpay',
+                    timeline: [],
+                    productName: isCartCheckout ? `${cartItems.length} Items` : product?.name,
+                    productImage: isCartCheckout ? undefined : product?.imageUrl
+                  });
+                  setTimeout(() => window.location.href = '/profile', 2000);
+                  break;
+                }
+                
+                pollAttempts++;
+                if (pollAttempts < maxPolls) {
+                  await new Promise(resolve => setTimeout(resolve, 5000)); // Wait 5s before next poll
+                }
+              } catch (error) {
+                console.error('Poll error:', error);
+                pollAttempts++;
+                if (pollAttempts < maxPolls) {
+                  await new Promise(resolve => setTimeout(resolve, 5000));
+                }
+              }
+            }
+            
+            if (!paymentConfirmed) {
+              console.warn('Payment status unclear after polling');
+              alert('⏳ Payment processing...\n\nIf deducted, it will be confirmed shortly. Check your profile.');
+            }
+            
             if (paymentTimeout) clearTimeout(paymentTimeout);
             setIsProcessing(false);
           }
