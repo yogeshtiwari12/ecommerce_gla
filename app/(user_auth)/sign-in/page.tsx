@@ -52,23 +52,16 @@ const SignInPage = () => {
     }
 
     try {
+      // Use NextAuth's built-in redirect mechanism
       const res = await signIn("credentials", {
-        redirect: false,
         email,
         password,
+        redirect: true,
+        callbackUrl: callbackUrl,
       });
 
-      if (res?.ok) {
-        toast.success("Sign in successful");
-        setFormData({ email: "", password: "" });
-        
-        // Brief delay to allow session to be set on server
-        await new Promise(resolve => setTimeout(resolve, 100));
-        
-        // Redirect to callback URL or profile
-        router.replace(callbackUrl);
-        return;
-      } else {
+      // If we get here, something went wrong
+      if (!res?.ok) {
         const errorMessage = res?.error || "Sign in failed. Please check your credentials.";
         setError(errorMessage);
         toast.error(errorMessage);

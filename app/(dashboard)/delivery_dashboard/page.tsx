@@ -36,7 +36,11 @@ import { user_delivery_update } from "@/app/redux/product"
 import { useSession } from "next-auth/react"
 
 export default function EnhancedDeliveryDashboard() {
+  // All hooks must be declared at the top, before any conditional returns
   const { data: session, status } = useSession()
+  const dispatch = useDispatch<AppDispatch>()
+  
+  // State hooks - ALL declared together at the top
   const [activeTab, setActiveTab] = useState("dashboard")
   const [searchTerm, setSearchTerm] = useState("")
   const [statusFilter, setStatusFilter] = useState("all")
@@ -46,16 +50,16 @@ export default function EnhancedDeliveryDashboard() {
   const [showOtpModal, setShowOtpModal] = useState(false)
   const [selectedOrderForCancel, setSelectedOrderForCancel] = useState<string | null>(null)
   const [otpVerifying, setOtpVerifying] = useState(false)
-  const dispatch = useDispatch<AppDispatch>()
+  const [userswithproduuct, setUsersWithProducts] = useState<any>(null)
+  const [selectedCustomer, setSelectedCustomer] = useState<string | null>(null)
+  const [selectedOrderId, setSelectedOrderId] = useState<string | null>(null)
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
 
   // Show loading state while checking auth (proxy handles redirects)
   if (status === "loading") {
     return <div className="flex items-center justify-center min-h-screen">Loading...</div>
   }
-
-  const [userswithproduuct, setUsersWithProducts] = useState<any>(null)
-  const current_user = useSession()
-
 
   const deliveryAgent = useMemo(() => {
     if (!userswithproduuct || !Array.isArray(userswithproduuct)) {
@@ -81,7 +85,7 @@ export default function EnhancedDeliveryDashboard() {
     const activeOrders = allProducts.filter((p: any) => p.productdeliverystatus !== "delivered" && p.productdeliverystatus !== "cancelled").length;
     const totalEarnings = allProducts.reduce((sum: number, p: any) => sum + (p.productprice || 0), 0);
     return {
-      name: current_user.data?.user?.name,
+      name: session?.user?.name,
       id: "DA-001",
       rating: completedOrders > 0 ? Math.min(5.0, 4.0 + completedOrders / totalOrders) : 4.0,
       totalDeliveries: completedOrders,
@@ -95,7 +99,7 @@ export default function EnhancedDeliveryDashboard() {
       activeOrders,
       completedOrders,
     }
-  }, [userswithproduuct])
+  }, [userswithproduuct, session])
 
   const sidebarItems = [
     {
@@ -272,9 +276,6 @@ export default function EnhancedDeliveryDashboard() {
     setOtpVerifying(false);
   }
 
-  const [selectedCustomer, setSelectedCustomer] = useState<string | null>(null)
-  const [selectedOrderId, setSelectedOrderId] = useState<string | null>(null)
-
   const getAllOrders = useMemo(() => {
     if (!userswithproduuct || !Array.isArray(userswithproduuct)) return []
 
@@ -381,9 +382,6 @@ export default function EnhancedDeliveryDashboard() {
     dispatchdata()
   }, [dispatch])
 
-  const [loading, setLoading] = useState(false)
-  const [error, setError] = useState<string | null>(null)
-
   useEffect(() => {
     async function fetchUserData() {
       setLoading(true)
@@ -446,12 +444,12 @@ export default function EnhancedDeliveryDashboard() {
             <div className="flex flex-col items-center text-center">
               <div className="relative mb-2">
                 <div className="w-20 h-20 bg-gradient-to-br from-primary to-primary/80 border border-primary-foreground/20 rounded-full flex items-center justify-center text-primary-foreground text-2xl font-bold shadow-xl">
-                  {current_user.data?.user?.name.charAt(0)}
+                  {session?.user?.name?.charAt(0)}
                 </div>
               </div>
               <div>
-                <h3 className="text-xl font-bold text-foreground mb-1">{current_user.data?.user?.name}</h3>
-                <p className="text-sm text-muted-foreground mb-3">{current_user.data?.user?.email}</p>
+                <h3 className="text-xl font-bold text-foreground mb-1">{session?.user?.name}</h3>
+                <p className="text-sm text-muted-foreground mb-3">{session?.user?.email}</p>
               </div>
             </div>
           </div>
