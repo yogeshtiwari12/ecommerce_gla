@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -19,18 +19,20 @@ import { toast } from "sonner";
 
 const SignInPage = () => {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const callbackUrl = searchParams.get("callbackUrl") || "/profile";
   
   const { data: session, status } = useSession();
   const [formData, setFormData] = useState({ email: "codekro8@gmail.com", password: "12345678" });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
-  // If user is already authenticated, redirect to profile
+  // If user is already authenticated, redirect to callback URL
   useEffect(() => {
     if (status === "authenticated" && session?.user) {
-      router.push("/profile");
+      router.replace(callbackUrl);
     }
-  }, [status, session, router]);
+  }, [status, session, router, callbackUrl]);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setFormData({ ...formData, [e.target.name]: e.target.value });
@@ -63,23 +65,22 @@ const SignInPage = () => {
         // Brief delay to allow session to be set on server
         await new Promise(resolve => setTimeout(resolve, 100));
         
-        // Redirect to profile - proxy will handle role-based redirects
-        // Default to /profile for users, admin will be redirected by proxy
-        router.push("/profile");
+        // Redirect to callback URL or profile
+        router.replace(callbackUrl);
         return;
       } else {
         const errorMessage = res?.error || "Sign in failed. Please check your credentials.";
         setError(errorMessage);
         toast.error(errorMessage);
+        setLoading(false);
       }
       
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : "An unexpected error occurred";
       toast.error(errorMessage);
       setError(errorMessage);
-      console.log("Catch error:", errorMessage);
-    } 
-    setLoading(false);
+      setLoading(false);
+    }
   };
 
   return (
