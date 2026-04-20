@@ -10,13 +10,13 @@ export async function GET(request: Request) {
         });
 
         // Get unique user IDs from userProducts
-         const userIds = Array.from(
-      new Set(
-        userProducts
-          .map((p) => p.userId)
-          .filter((id): id is string => typeof id === "string")
-      )
-    );
+        const userIds = Array.from(
+            new Set(
+                userProducts
+                    .map((p) => p.userId)
+                    .filter((id): id is string => typeof id === "string")
+            )
+        );
         // Fetch only users who have confirmed orders
         const users = await prisma.user.findMany({
             where: {
@@ -34,18 +34,18 @@ export async function GET(request: Request) {
             }
         });
 
-        // Get all userProduct IDs to fetch payment details
         const userProductIds = userProducts.map(p => p.id);
+        const catalogProductIds = userProducts
+            .map(p => p.productId)
+            .filter((id): id is string => typeof id === "string" && id.length > 10);
 
-        // Fetch payment details
         let paymentDetails: any[] = [];
         try {
+            const allIds = Array.from(new Set([...userProductIds, ...catalogProductIds]));
+            // console.log("Fetching ",allIds)
             paymentDetails = await prisma.paymentDetails.findMany({
                 where: {
-                    OR: [
-                        { item_product_id: { in: userProductIds } },
-                        { userId: { in: userIds } }
-                    ]
+                    item_product_id: { in: allIds }
                 }
             });
         } catch (error) {
@@ -63,33 +63,36 @@ export async function GET(request: Request) {
                     .map((product) => {
                         // Enhanced payment matching for cart items
                         const productPayment = paymentDetails.find(payment => {
-                            // Direct match by item_product_id
+                            // Primary: direct match by UserProduct ID (most accurate)
                             if (payment.item_product_id === product.id) {
                                 return true;
                             }
-                            
-                            // For cart items: match by userId if no specific item_product_id
-                            if (payment.userId === user.id && !payment.item_product_id) {
+
+                            // Secondary: match by the underlying Product ID
+                            // Only use this if productId looks like a real DB id (not a fallback)
+                            if (
+                                product.productId &&
+                                typeof product.productId === 'string' &&
+                                product.productId.length > 10 &&
+                                payment.item_product_id === product.productId
+                            ) {
                                 return true;
                             }
-                            
-                            // Additional check: if productId matches the payment reference
-                            if (product.productId && payment.item_product_id === product.productId) {
-                                return true;
-                            }
-                            
+
+                            // NOTE: Intentionally NOT using userId-only fallback — it would match
+                            // the wrong payment when a user has multiple orders.
                             return false;
                         });
-                        
-                     
+
+
                         // First try to find address by product.id (for cart items)
                         let productAddress = addresses.find(addr => addr.product_id === product.id);
-                        
+
                         // Fallback: Try to find by productId (for backward compatibility)
                         if (!productAddress && product.productId && typeof product.productId === 'string' && product.productId.length > 20) {
                             productAddress = addresses.find(addr => addr.id === product.productId);
                         }
-                        
+
                         // Final fallback: Use latest user address
                         if (!productAddress) {
                             productAddress = latestAddress;
@@ -150,7 +153,7 @@ export async function GET(request: Request) {
             success: false,
             message: "Failed to fetch user products",
             error: error instanceof Error ? error.message : "Unknown error"
-        }), { 
+        }), {
             status: 500,
             headers: { 'Content-Type': 'application/json' }
         });

@@ -193,7 +193,7 @@ export type ShippingAddressGroupByOutputType = {
   _max: ShippingAddressMaxAggregateOutputType | null
 }
 
-type GetShippingAddressGroupByPayload<T extends ShippingAddressGroupByArgs> = Prisma.PrismaPromise<
+export type GetShippingAddressGroupByPayload<T extends ShippingAddressGroupByArgs> = Prisma.PrismaPromise<
   Array<
     Prisma.PickEnumerable<ShippingAddressGroupByOutputType, T['by']> &
       {
@@ -1094,6 +1094,11 @@ export type ShippingAddressFindManyArgs<ExtArgs extends runtime.Types.Extensions
    * Skip the first `n` ShippingAddresses.
    */
   skip?: number
+  /**
+   * {@link https://www.prisma.io/docs/concepts/components/prisma-client/distinct Distinct Docs}
+   * 
+   * Filter by unique combinations of ShippingAddresses.
+   */
   distinct?: Prisma.ShippingAddressScalarFieldEnum | Prisma.ShippingAddressScalarFieldEnum[]
 }
 

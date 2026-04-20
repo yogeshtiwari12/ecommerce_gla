@@ -3,15 +3,15 @@ import { prisma } from '@/app/lib/prisma';
 import { getServerSession } from 'next-auth';
 import { NextResponse } from 'next/server';
 import { authOptions } from '../../(auth)/auth/[...nextauth]/options';
+import { profile } from 'node:console';
 
 
 export async function POST(request: Request) {
     try {
-        const data = await request.json();
-        const { phoneNumber, streetAddress, city, state, pinCode, product_ids } = data;
-        if(phoneNumber.length>10){
-            return NextResponse.json({ success: false, error: 'Invalid phone number' }, { status: 400 });       
-        }
+    
+        const data  = await request.json(); 
+     
+     const { phoneNumber, streetAddress, city, state, pinCode, product_ids } = data;                               
 
         if (!phoneNumber || !streetAddress || !city || !state || !pinCode) {
             return NextResponse.json(
@@ -24,7 +24,7 @@ export async function POST(request: Request) {
 
         if (!session?.user?.id) {
             return NextResponse.json(
-                { success: false, error: 'User session not found' },
+                { success: false, error: 'Session not found' },
                 { status: 401 }
             );
         }
@@ -102,6 +102,7 @@ export async function POST(request: Request) {
             success: true, 
             message: `${addresses.length} address(es) saved successfully`,
             data: addresses,
+            // predata: predata,
             errors: errors.length > 0 ? errors : undefined
         });
 

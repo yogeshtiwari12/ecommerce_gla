@@ -12,6 +12,7 @@ export const authOptions: NextAuthOptions = {
       credentials: {
         email: { label: "Email", type: "email", placeholder: "your@email.com" },
         password: { label: "Password", type: "password" },
+        role: { label: "Role", type: "text" },
         employeeId: { label: "Employee ID", type: "text" },
       },
       async authorize(credentials: any): Promise<any> {
@@ -32,6 +33,10 @@ export const authOptions: NextAuthOptions = {
           const allowedRoles = ['user', 'delivery_agent', 'admin'];
           if (!allowedRoles.includes(user.role)) {
             throw new Error("Access denied: not a valid user or employee");
+          }
+
+          if (credentials.role && credentials.role !== user.role) {
+            throw new Error("Selected role does not match your account");
           }
 
 
@@ -104,8 +109,8 @@ export const authOptions: NextAuthOptions = {
     },
   },
   pages: {
-    signIn: "/login",
-    error: "/login",
+    signIn: "/sign-in",
+    error: "/sign-in",
   },
   session: {
     strategy: "jwt",

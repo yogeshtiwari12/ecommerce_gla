@@ -31,7 +31,7 @@ model UserProduct {
   user_product_description String
   user_product_price       Int
   user_product_category    String
-  user_product_item_id     String         @unique
+  user_product_item_id     String?         @unique
   user_product_unit_total  Int?           @default(0)
   user_product_cart_count  Int?           @default(0)
   userId                   String?        @db.Uuid

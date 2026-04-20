@@ -15,7 +15,6 @@ export async function POST(request: Request) {
     const verifycode = Math.floor(100000 + Math.random() * 900000).toString();
     const haspass = await bcrypt.hash(password, 10);
 
-    // CASE 1: user exists AND is verified → reject
     if (existingUser && existingUser.isVerified) {
       return Response.json(
         { success: false, message: "User already Exists With this email" },
@@ -34,7 +33,6 @@ export async function POST(request: Request) {
       });
     }
 
-    // CASE 3: new user → create
     if (!existingUser) {
       await prisma.user.create({
         data: {

@@ -15,6 +15,8 @@ import { useSession, signOut } from "next-auth/react";
 import axios from "axios";
 import { toast } from "sonner";
 import { useRouter } from "next/navigation";
+import { getDefaultRouteForRole } from "@/lib/role-routes";
+import { ThemeToggle } from "./ThemeToggle";
 
 
 const Navbar = () => {
@@ -58,44 +60,45 @@ const router = useRouter();
   };
 
   return (
-    <nav className="bg-white shadow-md border-b border-gray-200 fixed top-0 left-0 right-0 z-50">
+    <nav className="bg-card dark:bg-card border-b border-border fixed top-0 left-0 right-0 z-50 shadow-sm">
       <div className="max-w-8xl mx-auto px-2 sm:px-4">
         <div className="flex justify-between items-center h-16 relative">
-          <div className="text-xl font-bold text-blue-600">Logo</div>
+          <div className="text-xl font-bold text-primary dark:text-primary">Logo</div>
           <div className="hidden md:flex space-x-12 font-sans text-2sm absolute left-1/2 transform -translate-x-1/2">
             {navItems.map((item) => (
               <a
                 key={item.name}
                 href={item.href}
-                className="text-gray-700 hover:text-blue-600 transition-colors"
+                className="text-foreground/70 hover:text-primary dark:text-foreground/70 dark:hover:text-primary transition-colors"
               >
                 {item.name}
               </a>
             ))}
           </div>
-          <div className="hidden md:block">
+          <div className="hidden md:flex items-center gap-4">
+            <ThemeToggle />
             {isLoggedIn  && status=="authenticated" ? (
               <div className="flex space-x-3">
                 <Button
-                  variant="destructive"
+                  variant="outline"
                   onClick={handleLogout}
-                  className="px-4 py-4 bg-gray-100 hover:bg-gray-200 text-gray-900 border border-gray-300"
+                  className="px-4 py-4"
                 >
                   Logout
                 </Button>
                 {session?.user?.role === "delivery_agent" || session?.user?.role === "admin" ? (
                   <Button
-                    variant="secondary"
-                    onClick={() => {window.location.href = session?.user?.role === "admin" ? "/admin_dashboard" : "/delivery_dashboard"}}
-                    className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white"
+                    variant="default"
+                    onClick={() => {window.location.href = getDefaultRouteForRole(session?.user?.role)}}
+                    className="px-4 py-2"
                   >
                     Dashboard
                   </Button>
                 ) : (
                   <Button
-                    variant="secondary"
+                    variant="default"
                     onClick={() => {window.location.href = "/profile"}}
-                    className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white"
+                    className="px-4 py-2"
                   >
                     Profile
                   </Button>
@@ -105,22 +108,23 @@ const router = useRouter();
               <Button
                 variant="default"
                 onClick={handleLogin}
-                className="px-4 py-2 bg-blue-500 hover:bg-blue-800 text-white"
+                className="px-4 py-2"
               >
                 Sign in
               </Button>
             )}
           </div>
-          <div className="md:hidden">
+          <div className="md:hidden flex items-center gap-2">
+            <ThemeToggle />
             <Sheet open={isOpen} onOpenChange={setIsOpen}>
               <SheetTrigger asChild>
-                <Button variant="ghost" size="icon" className="text-gray-700 hover:text-blue-600">
+                <Button variant="ghost" size="icon" className="text-foreground hover:text-primary">
                   <Menu size={24} />
                 </Button>
               </SheetTrigger>
-              <SheetContent side="right" className="w-64 bg-white border-gray-200">
+              <SheetContent side="right" className="w-64 bg-card border-border">
                 <SheetHeader>
-                  <SheetTitle className="text-lg font-semibold text-center text-blue-600">
+                  <SheetTitle className="text-lg font-semibold text-center text-primary">
                     Menu
                   </SheetTitle>
                 </SheetHeader>
@@ -129,44 +133,44 @@ const router = useRouter();
                     <a
                       key={item.name}
                       href={item.href}
-                      className="w-full text-gray-700 hover:text-blue-600 transition-colors py-2"
+                      className="w-full text-foreground/70 hover:text-primary transition-colors py-2"
                       onClick={() => setIsOpen(false)}
                     >
                       {item.name}
                     </a>
                   ))}
-                  <div className="pt-4 border-t border-gray-200 w-full flex flex-col items-center space-y-2">
+                  <div className="pt-4 border-t border-border w-full flex flex-col items-center space-y-2">
                     {isLoggedIn ? (
                       <>
                         <Button
-                          variant="destructive"
+                          variant="outline"
                           onClick={() => {
                             handleLogout();
                             setIsOpen(false);
                           }}
-                          className="w-full bg-gray-100 hover:bg-gray-200 text-gray-900 border border-gray-300"
+                          className="w-full"
                         >
                           Logout
                         </Button>
                         {session?.user?.role === "delivery_agent" || session?.user?.role === "admin" ? (
                           <Button
-                            variant="secondary"
+                            variant="default"
                             onClick={() => {
-                              window.location.href = session?.user?.role === "admin" ? "/admin_dashboard" : "/delivery_dashboard";
+                              window.location.href = getDefaultRouteForRole(session?.user?.role);
                               setIsOpen(false);
                             }}
-                            className="w-full bg-blue-600 hover:bg-blue-700 text-white"
+                            className="w-full"
                           >
                             Dashboard
                           </Button>
                         ) : (
                           <Button
-                            variant="secondary"
+                            variant="default"
                             onClick={() => {
                               window.location.href = "/profile";
                               setIsOpen(false);
                             }}
-                            className="w-full bg-blue-600 hover:bg-blue-700 text-white"
+                            className="w-full"
                           >
                             Profile
                           </Button>
@@ -179,7 +183,7 @@ const router = useRouter();
                           handleLogin();
                           setIsOpen(false);
                         }}
-                        className="w-full bg-orange-500 hover:bg-orange-600 text-white"
+                        className="w-full"
                       >
                         Login
                       </Button>
@@ -196,3 +200,4 @@ const router = useRouter();
 };
 
 export default Navbar;
+

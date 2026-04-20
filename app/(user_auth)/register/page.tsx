@@ -69,20 +69,20 @@ function Page() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+    <div className="min-h-screen bg-background flex items-center justify-center">
       <div className="w-full max-w-md">
-        <Card className="bg-white border border-gray-200 rounded-xl shadow-lg">
+        <Card className="bg-card border border-border rounded-xl shadow-lg">
           <CardHeader className="space-y-1">
-            <CardTitle className="text-2xl text-blue-600 text-center">Create Account</CardTitle>
-            <CardDescription className="text-center text-gray-600">
+            <CardTitle className="text-2xl text-primary text-center">Create Account</CardTitle>
+            <CardDescription className="text-center text-muted-foreground">
               Enter your information to create your account
             </CardDescription>
           </CardHeader>
 
           <CardContent>
             {error && (
-              <Alert className="mb-4 bg-red-50 border-red-200">
-                <AlertDescription className="text-red-700">
+              <Alert className="mb-4 bg-destructive/10 border-destructive/30">
+                <AlertDescription className="text-destructive">
                   {error}
                 </AlertDescription>
               </Alert>
@@ -90,9 +90,9 @@ function Page() {
 
             <form onSubmit={handleSubmit} className="space-y-4">
               <div className="space-y-2">
-                <Label className="text-gray-700" htmlFor="name">Full Name</Label>
+                <Label className="text-foreground" htmlFor="name">Full Name</Label>
                 <div className="relative">
-                  <User className="absolute left-3 top-3 h-4 w-4 text-gray-500" />
+                  <User className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
                   <Input
                     id="name"
                     name="name"
@@ -101,16 +101,16 @@ function Page() {
                     value={formData.name}
                     onChange={handleChange}
                     disabled={loading}
-                    className="pl-10 text-gray-900 placeholder:text-gray-500 bg-white border border-gray-300 focus:border-blue-500 focus:ring-2 focus:ring-blue-200"
+                    className="pl-10 text-foreground placeholder:text-muted-foreground bg-card border border-border focus:border-primary focus:ring-2 focus:ring-primary/20"
                     required
                   />
                 </div>
               </div>
 
               <div className="space-y-2">
-                <Label className="text-gray-700" htmlFor="email">Email</Label>
+                <Label className="text-foreground" htmlFor="email">Email</Label>
                 <div className="relative">
-                  <Mail className="absolute left-3 top-3 h-4 w-4 text-gray-500" />
+                  <Mail className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
                   <Input
                     id="email"
                     name="email"
@@ -119,16 +119,16 @@ function Page() {
                     value={formData.email}
                     onChange={handleChange}
                     disabled={loading}
-                    className="pl-10 text-gray-900 placeholder:text-gray-500 bg-white border border-gray-300 focus:border-blue-500 focus:ring-2 focus:ring-blue-200"
+                    className="pl-10 text-foreground placeholder:text-muted-foreground bg-card border border-border focus:border-primary focus:ring-2 focus:ring-primary/20"
                     required
                   />
                 </div>
               </div>
 
               <div className="space-y-2">
-                <Label className="text-gray-700" htmlFor="password">Password</Label>
+                <Label className="text-foreground" htmlFor="password">Password</Label>
                 <div className="relative">
-                  <Lock className="absolute left-3 top-3 h-4 w-4 text-gray-500" />
+                  <Lock className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
                   <Input
                     id="password"
                     name="password"
@@ -137,13 +137,13 @@ function Page() {
                     value={formData.password}
                     onChange={handleChange}
                     disabled={loading}
-                    className="pl-10 pr-10 text-gray-900 placeholder:text-gray-500 bg-white border border-gray-300 focus:border-blue-500 focus:ring-2 focus:ring-blue-200"
+                    className="pl-10 pr-10 text-foreground placeholder:text-muted-foreground bg-card border border-border focus:border-primary focus:ring-2 focus:ring-primary/20"
                     required
                   />
                   <button
                     type="button"
                     onClick={() => setShowPassword(!showPassword)}
-                    className="absolute right-3 top-3 h-4 w-4 text-gray-500 hover:text-gray-700 transition-colors"
+                    className="absolute right-3 top-3 h-4 w-4 text-muted-foreground hover:text-foreground transition-colors"
                   >
                     {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                   </button>
@@ -152,7 +152,7 @@ function Page() {
 
               <Button 
                 type="submit" 
-                className="w-full bg-orange-500 hover:bg-orange-600 text-white" 
+                className="w-full bg-primary hover:bg-primary/90 text-primary-foreground" 
                 disabled={loading}
               >
                 {loading ? (
@@ -165,9 +165,9 @@ function Page() {
                 )}
               </Button>
 
-              <CardDescription className="text-center text-sm text-gray-600 mt-2">
+              <CardDescription className="text-center text-sm text-muted-foreground mt-2">
                 Already have an account?{' '}
-                <a href="/sign-in" className="text-blue-600 hover:text-blue-700 hover:underline">
+                <a href="/sign-in" className="text-primary hover:underline">
                   Sign in here
                 </a>
               </CardDescription>

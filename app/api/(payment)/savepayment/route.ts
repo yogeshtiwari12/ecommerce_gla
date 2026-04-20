@@ -16,8 +16,6 @@ export async function PUT(request: Request) {
       paymentMethod, 
       payments 
     } = data;
-    
-    console.log('Payment PUT Request:', { razorpay_order_id, razorpay_payment_id, paymentMethod, userId, item_product_ids, cartItems });
 
     // Handle both single item and multiple items
     const productIdsArray = Array.isArray(item_product_ids) 
@@ -103,6 +101,11 @@ export async function PUT(request: Request) {
           paymentDetails,
         });
       }
+
+      return NextResponse.json(
+        { success: false, error: 'No valid product IDs or cart items provided for COD' },
+        { status: 400 }
+      );
     }
 
     // Razorpay payment verification
@@ -114,11 +117,16 @@ export async function PUT(request: Request) {
       .digest('hex');
 
     const isAuthentic = expectedSignature === razorpay_signature;
-    console.log('Signature verification:', { isAuthentic });
 
-    if (isAuthentic) {
-      // Create separate payment record for each product/cart item
-      if (productIdsArray.length > 0) {
+    if (!isAuthentic) {
+      return NextResponse.json(
+        { success: false, error: 'Invalid signature' },
+        { status: 400 }
+      );
+    }
+
+    // Signature is valid — save payment records
+    if (productIdsArray.length > 0) {
         const paymentPromises = productIdsArray.map(async (productId, index) => {
           return await prisma.paymentDetails.create({
             data: {
@@ -163,12 +171,11 @@ export async function PUT(request: Request) {
           paymentDetails,
         });
       }
-    } else {
+
       return NextResponse.json(
-        { success: false, error: 'Invalid signature' },
+        { success: false, error: 'No valid product IDs or cart items provided for Razorpay payment' },
         { status: 400 }
       );
-    }
 
   } catch (error: any) {
     console.error('Payment PUT error:', {

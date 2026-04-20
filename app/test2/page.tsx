@@ -51,7 +51,7 @@ export default function OrderSuccessModal({ show, orderDetails, onClose }: Order
 
   return (
     <div className={`fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/20 backdrop-blur-sm transition-all duration-300 ${isVisible ? 'opacity-100' : 'opacity-0'}`}>
-      <div className={`bg-white rounded-2xl shadow-2xl border border-slate-200 w-full max-w-md transform transition-all duration-500 ${isVisible ? 'translate-y-0 scale-100 opacity-100' : 'translate-y-8 scale-95 opacity-0'}`}>
+      <div className={`bg-card rounded-2xl shadow-2xl border border-slate-200 w-full max-w-md transform transition-all duration-500 ${isVisible ? 'translate-y-0 scale-100 opacity-100' : 'translate-y-8 scale-95 opacity-0'}`}>
         
         {/* Compact Header */}
         <div className="relative bg-gradient-to-r from-green-50 to-slate-50 p-6 text-center rounded-t-2xl border-b border-slate-200">
@@ -188,3 +188,4 @@ export default function OrderSuccessModal({ show, orderDetails, onClose }: Order
     </div>
   );
 }
+

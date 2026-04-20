@@ -42,7 +42,8 @@ export async function GET(request: Request) {
 
         const user_shop_data_with_address = user_shop_data.map((product) => {
             const address = addresses.find(
-                (addr) => addr.product_id === product.id
+                (addr) => addr.product_id === product.id,
+            
             );
             
             const fallbackAddress = !address ? addresses.find(
@@ -55,6 +56,7 @@ export async function GET(request: Request) {
             
             return { ...product, shippingAddress: finalAddress || null };
         });
+        // const productid = user_shop_data_with_address.map((product) => product.productId);  
         
 
         return Response.json(

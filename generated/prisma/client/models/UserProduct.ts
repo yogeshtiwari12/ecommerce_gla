@@ -277,7 +277,7 @@ export type UserProductGroupByOutputType = {
   user_product_description: string
   user_product_price: number
   user_product_category: string
-  user_product_item_id: string
+  user_product_item_id: string | null
   user_product_unit_total: number | null
   user_product_cart_count: number | null
   userId: string | null
@@ -298,7 +298,7 @@ export type UserProductGroupByOutputType = {
   _max: UserProductMaxAggregateOutputType | null
 }
 
-type GetUserProductGroupByPayload<T extends UserProductGroupByArgs> = Prisma.PrismaPromise<
+export type GetUserProductGroupByPayload<T extends UserProductGroupByArgs> = Prisma.PrismaPromise<
   Array<
     Prisma.PickEnumerable<UserProductGroupByOutputType, T['by']> &
       {
@@ -322,7 +322,7 @@ export type UserProductWhereInput = {
   user_product_description?: Prisma.StringFilter<"UserProduct"> | string
   user_product_price?: Prisma.IntFilter<"UserProduct"> | number
   user_product_category?: Prisma.StringFilter<"UserProduct"> | string
-  user_product_item_id?: Prisma.StringFilter<"UserProduct"> | string
+  user_product_item_id?: Prisma.StringNullableFilter<"UserProduct"> | string | null
   user_product_unit_total?: Prisma.IntNullableFilter<"UserProduct"> | number | null
   user_product_cart_count?: Prisma.IntNullableFilter<"UserProduct"> | number | null
   userId?: Prisma.UuidNullableFilter<"UserProduct"> | string | null
@@ -345,7 +345,7 @@ export type UserProductOrderByWithRelationInput = {
   user_product_description?: Prisma.SortOrder
   user_product_price?: Prisma.SortOrder
   user_product_category?: Prisma.SortOrder
-  user_product_item_id?: Prisma.SortOrder
+  user_product_item_id?: Prisma.SortOrderInput | Prisma.SortOrder
   user_product_unit_total?: Prisma.SortOrderInput | Prisma.SortOrder
   user_product_cart_count?: Prisma.SortOrderInput | Prisma.SortOrder
   userId?: Prisma.SortOrderInput | Prisma.SortOrder
@@ -394,7 +394,7 @@ export type UserProductOrderByWithAggregationInput = {
   user_product_description?: Prisma.SortOrder
   user_product_price?: Prisma.SortOrder
   user_product_category?: Prisma.SortOrder
-  user_product_item_id?: Prisma.SortOrder
+  user_product_item_id?: Prisma.SortOrderInput | Prisma.SortOrder
   user_product_unit_total?: Prisma.SortOrderInput | Prisma.SortOrder
   user_product_cart_count?: Prisma.SortOrderInput | Prisma.SortOrder
   userId?: Prisma.SortOrderInput | Prisma.SortOrder
@@ -424,7 +424,7 @@ export type UserProductScalarWhereWithAggregatesInput = {
   user_product_description?: Prisma.StringWithAggregatesFilter<"UserProduct"> | string
   user_product_price?: Prisma.IntWithAggregatesFilter<"UserProduct"> | number
   user_product_category?: Prisma.StringWithAggregatesFilter<"UserProduct"> | string
-  user_product_item_id?: Prisma.StringWithAggregatesFilter<"UserProduct"> | string
+  user_product_item_id?: Prisma.StringNullableWithAggregatesFilter<"UserProduct"> | string | null
   user_product_unit_total?: Prisma.IntNullableWithAggregatesFilter<"UserProduct"> | number | null
   user_product_cart_count?: Prisma.IntNullableWithAggregatesFilter<"UserProduct"> | number | null
   userId?: Prisma.UuidNullableWithAggregatesFilter<"UserProduct"> | string | null
@@ -446,7 +446,7 @@ export type UserProductCreateInput = {
   user_product_description: string
   user_product_price: number
   user_product_category: string
-  user_product_item_id: string
+  user_product_item_id?: string | null
   user_product_unit_total?: number | null
   user_product_cart_count?: number | null
   iscancelled?: boolean | null
@@ -468,7 +468,7 @@ export type UserProductUncheckedCreateInput = {
   user_product_description: string
   user_product_price: number
   user_product_category: string
-  user_product_item_id: string
+  user_product_item_id?: string | null
   user_product_unit_total?: number | null
   user_product_cart_count?: number | null
   userId?: string | null
@@ -490,7 +490,7 @@ export type UserProductUpdateInput = {
   user_product_description?: Prisma.StringFieldUpdateOperationsInput | string
   user_product_price?: Prisma.IntFieldUpdateOperationsInput | number
   user_product_category?: Prisma.StringFieldUpdateOperationsInput | string
-  user_product_item_id?: Prisma.StringFieldUpdateOperationsInput | string
+  user_product_item_id?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   user_product_unit_total?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
   user_product_cart_count?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
   iscancelled?: Prisma.NullableBoolFieldUpdateOperationsInput | boolean | null
@@ -512,7 +512,7 @@ export type UserProductUncheckedUpdateInput = {
   user_product_description?: Prisma.StringFieldUpdateOperationsInput | string
   user_product_price?: Prisma.IntFieldUpdateOperationsInput | number
   user_product_category?: Prisma.StringFieldUpdateOperationsInput | string
-  user_product_item_id?: Prisma.StringFieldUpdateOperationsInput | string
+  user_product_item_id?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   user_product_unit_total?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
   user_product_cart_count?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
   userId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
@@ -534,7 +534,7 @@ export type UserProductCreateManyInput = {
   user_product_description: string
   user_product_price: number
   user_product_category: string
-  user_product_item_id: string
+  user_product_item_id?: string | null
   user_product_unit_total?: number | null
   user_product_cart_count?: number | null
   userId?: string | null
@@ -556,7 +556,7 @@ export type UserProductUpdateManyMutationInput = {
   user_product_description?: Prisma.StringFieldUpdateOperationsInput | string
   user_product_price?: Prisma.IntFieldUpdateOperationsInput | number
   user_product_category?: Prisma.StringFieldUpdateOperationsInput | string
-  user_product_item_id?: Prisma.StringFieldUpdateOperationsInput | string
+  user_product_item_id?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   user_product_unit_total?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
   user_product_cart_count?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
   iscancelled?: Prisma.NullableBoolFieldUpdateOperationsInput | boolean | null
@@ -577,7 +577,7 @@ export type UserProductUncheckedUpdateManyInput = {
   user_product_description?: Prisma.StringFieldUpdateOperationsInput | string
   user_product_price?: Prisma.IntFieldUpdateOperationsInput | number
   user_product_category?: Prisma.StringFieldUpdateOperationsInput | string
-  user_product_item_id?: Prisma.StringFieldUpdateOperationsInput | string
+  user_product_item_id?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   user_product_unit_total?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
   user_product_cart_count?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
   userId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
@@ -753,7 +753,7 @@ export type UserProductCreateWithoutUserInput = {
   user_product_description: string
   user_product_price: number
   user_product_category: string
-  user_product_item_id: string
+  user_product_item_id?: string | null
   user_product_unit_total?: number | null
   user_product_cart_count?: number | null
   iscancelled?: boolean | null
@@ -774,7 +774,7 @@ export type UserProductUncheckedCreateWithoutUserInput = {
   user_product_description: string
   user_product_price: number
   user_product_category: string
-  user_product_item_id: string
+  user_product_item_id?: string | null
   user_product_unit_total?: number | null
   user_product_cart_count?: number | null
   iscancelled?: boolean | null
@@ -824,7 +824,7 @@ export type UserProductScalarWhereInput = {
   user_product_description?: Prisma.StringFilter<"UserProduct"> | string
   user_product_price?: Prisma.IntFilter<"UserProduct"> | number
   user_product_category?: Prisma.StringFilter<"UserProduct"> | string
-  user_product_item_id?: Prisma.StringFilter<"UserProduct"> | string
+  user_product_item_id?: Prisma.StringNullableFilter<"UserProduct"> | string | null
   user_product_unit_total?: Prisma.IntNullableFilter<"UserProduct"> | number | null
   user_product_cart_count?: Prisma.IntNullableFilter<"UserProduct"> | number | null
   userId?: Prisma.UuidNullableFilter<"UserProduct"> | string | null
@@ -846,7 +846,7 @@ export type UserProductCreateManyUserInput = {
   user_product_description: string
   user_product_price: number
   user_product_category: string
-  user_product_item_id: string
+  user_product_item_id?: string | null
   user_product_unit_total?: number | null
   user_product_cart_count?: number | null
   iscancelled?: boolean | null
@@ -867,7 +867,7 @@ export type UserProductUpdateWithoutUserInput = {
   user_product_description?: Prisma.StringFieldUpdateOperationsInput | string
   user_product_price?: Prisma.IntFieldUpdateOperationsInput | number
   user_product_category?: Prisma.StringFieldUpdateOperationsInput | string
-  user_product_item_id?: Prisma.StringFieldUpdateOperationsInput | string
+  user_product_item_id?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   user_product_unit_total?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
   user_product_cart_count?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
   iscancelled?: Prisma.NullableBoolFieldUpdateOperationsInput | boolean | null
@@ -888,7 +888,7 @@ export type UserProductUncheckedUpdateWithoutUserInput = {
   user_product_description?: Prisma.StringFieldUpdateOperationsInput | string
   user_product_price?: Prisma.IntFieldUpdateOperationsInput | number
   user_product_category?: Prisma.StringFieldUpdateOperationsInput | string
-  user_product_item_id?: Prisma.StringFieldUpdateOperationsInput | string
+  user_product_item_id?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   user_product_unit_total?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
   user_product_cart_count?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
   iscancelled?: Prisma.NullableBoolFieldUpdateOperationsInput | boolean | null
@@ -909,7 +909,7 @@ export type UserProductUncheckedUpdateManyWithoutUserInput = {
   user_product_description?: Prisma.StringFieldUpdateOperationsInput | string
   user_product_price?: Prisma.IntFieldUpdateOperationsInput | number
   user_product_category?: Prisma.StringFieldUpdateOperationsInput | string
-  user_product_item_id?: Prisma.StringFieldUpdateOperationsInput | string
+  user_product_item_id?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   user_product_unit_total?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
   user_product_cart_count?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
   iscancelled?: Prisma.NullableBoolFieldUpdateOperationsInput | boolean | null
@@ -1039,7 +1039,7 @@ export type $UserProductPayload<ExtArgs extends runtime.Types.Extensions.Interna
     user_product_description: string
     user_product_price: number
     user_product_category: string
-    user_product_item_id: string
+    user_product_item_id: string | null
     user_product_unit_total: number | null
     user_product_cart_count: number | null
     userId: string | null
@@ -1692,6 +1692,11 @@ export type UserProductFindManyArgs<ExtArgs extends runtime.Types.Extensions.Int
    * Skip the first `n` UserProducts.
    */
   skip?: number
+  /**
+   * {@link https://www.prisma.io/docs/concepts/components/prisma-client/distinct Distinct Docs}
+   * 
+   * Filter by unique combinations of UserProducts.
+   */
   distinct?: Prisma.UserProductScalarFieldEnum | Prisma.UserProductScalarFieldEnum[]
 }
 

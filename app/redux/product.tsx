@@ -89,6 +89,21 @@ export const createOrder = createAsyncThunk(
     }
 );
 
+export const verifyPayment = createAsyncThunk(
+    "product/verifyPayment", async (paymentData: any) => {
+        try {
+            const response = await axios.post('/api/verifypayment', paymentData, {
+                withCredentials: true,
+            });
+            console.log("Payment verification response:", response);            
+            return response.data;
+        } catch (error: any) {
+            console.error("Error verifying payment:", error);
+            throw new Error(error.response?.data?.error || "Failed to verify payment");
+        }
+    }
+);
+
 export const savePayment = createAsyncThunk(
     "product/savePayment", async (paymentDetails: any) => {
         try {
@@ -330,6 +345,76 @@ export const get_product_address = createAsyncThunk(
   }
 );
 
+// Admin API Thunks
+export const get_admin_dashboard_data = createAsyncThunk(
+  "product/get_admin_dashboard_data",
+  async () => {
+    try {
+      const response = await axios.get(`/api/user_data`, {
+        withCredentials: true,
+      });
+      if (response.status === 200) {
+        return response.data;
+      }
+    } catch (error) {
+      console.error("Error fetching admin dashboard data:", error);
+      throw new Error("Failed to fetch admin dashboard data");
+    }
+  }
+);
+
+export const get_employees_list = createAsyncThunk(
+  "product/get_employees_list",
+  async () => {
+    try {
+      const response = await axios.get(`/api/employee`, {
+        withCredentials: true,
+      });
+      if (response.status === 200) {
+        // console.log("Employees List:", response.data);
+        return response.data;
+      }
+    } catch (error) {
+      console.error("Error fetching employees:", error);
+      throw new Error("Failed to fetch employees");
+    }
+  }
+);
+
+export const get_all_products_admin = createAsyncThunk(
+  "product/get_all_products_admin",
+  async () => {
+    try {
+      const response = await axios.get(`/api/product`, {
+        withCredentials: true,
+      });
+      if (response.status === 200) {
+        return response.data;
+      }
+    } catch (error) {
+      console.error("Error fetching admin products:", error);
+      throw new Error("Failed to fetch admin products");
+    }
+  }
+);
+
+export const update_user_role = createAsyncThunk(
+  "product/update_user_role",
+  async ({ userId, updateData }: { userId: string; updateData: any }, { rejectWithValue }) => {
+    try {
+      const response = await axios.patch(`/api/admin/update_role/update_role/${userId}`, updateData, {
+        withCredentials: true,
+      });
+      if (response.status === 200) {
+        return response.data;
+      }
+    } catch (error: any) {
+      console.error("Error updating user role:", error);
+      return rejectWithValue(error.response?.data || { message: "Failed to update user role" });
+    }
+  }
+);
+
 const productSlice = createSlice({
     name: "product",
     initialState: {
@@ -341,6 +426,12 @@ const productSlice = createSlice({
         successmessage: null as string | null,
         buyData: null as { message: string; buy_data: any } | null,
         addressesById: {} as Record<string, { id: string; phoneNumber: string; streetAddress: string; city: string; state: string; pinCode: string }>,
+        // Admin data
+        adminDashboardData: null as any,
+        employeesList: [] as any[],
+        adminProducts: [] as any[],
+        adminLoading: false,
+        adminError: null as string | null,
     },
 
     reducers: {
@@ -547,6 +638,18 @@ const productSlice = createSlice({
                 state.error = action.error.message ?? "Failed to create order";
             })
 
+            .addCase(verifyPayment.pending, (state) => {
+                state.loading = true;
+                state.error = null;
+            })
+            .addCase(verifyPayment.fulfilled, (state, action) => {
+                state.loading = false;
+            })
+            .addCase(verifyPayment.rejected, (state, action) => {
+                state.loading = false;
+                state.error = action.error.message ?? "Failed to verify payment";
+            })
+
             .addCase(savePayment.pending, (state) => {
                 state.loading = true;
                 state.error = null;
@@ -569,6 +672,61 @@ const productSlice = createSlice({
             .addCase(createUserProduct.rejected, (state, action) => {
                 state.loading = false;
                 state.error = action.error.message ?? "Failed to create user product";
+            })
+
+            // Admin Dashboard Data
+            .addCase(get_admin_dashboard_data.pending, (state) => {
+                state.adminLoading = true;
+                state.adminError = null;
+            })
+            .addCase(get_admin_dashboard_data.fulfilled, (state, action) => {
+                state.adminLoading = false;
+                state.adminDashboardData = action.payload;
+            })
+            .addCase(get_admin_dashboard_data.rejected, (state, action) => {
+                state.adminLoading = false;
+                state.adminError = action.error.message ?? "Failed to fetch admin dashboard data";
+            })
+
+            // Employees List
+            .addCase(get_employees_list.pending, (state) => {
+                state.adminLoading = true;
+                state.adminError = null;
+            })
+            .addCase(get_employees_list.fulfilled, (state, action) => {
+                state.adminLoading = false;
+                state.employeesList = action.payload;
+            })
+            .addCase(get_employees_list.rejected, (state, action) => {
+                state.adminLoading = false;
+                state.adminError = action.error.message ?? "Failed to fetch employees";
+            })
+
+            // Admin Products
+            .addCase(get_all_products_admin.pending, (state) => {
+                state.adminLoading = true;
+                state.adminError = null;
+            })
+            .addCase(get_all_products_admin.fulfilled, (state, action) => {
+                state.adminLoading = false;
+                state.adminProducts = action.payload;
+            })
+            .addCase(get_all_products_admin.rejected, (state, action) => {
+                state.adminLoading = false;
+                state.adminError = action.error.message ?? "Failed to fetch admin products";
+            })
+
+            // Update User Role
+            .addCase(update_user_role.pending, (state) => {
+                state.adminLoading = true;
+                state.adminError = null;
+            })
+            .addCase(update_user_role.fulfilled, (state, action) => {
+                state.adminLoading = false;
+            })
+            .addCase(update_user_role.rejected, (state, action) => {
+                state.adminLoading = false;
+                state.adminError = (action.payload as any)?.message ?? "Failed to update user role";
             })
     },
 

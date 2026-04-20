@@ -31,7 +31,7 @@ export async function POST(request: Request) {
         await prisma.userProduct.update({
             where: { id: verifyOtp.id },
             data: { 
-                // isorderConfirmbyUser: false,
+                isorderConfirmbyUser: false,
                 iscancelled: true,
                 product_delivery_status: "cancelled"
             } 

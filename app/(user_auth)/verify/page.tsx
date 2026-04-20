@@ -129,15 +129,15 @@ function Page() {
     const isOtpComplete = otp.every(digit => digit !== '')
 
     return (
-        <div className="min-h-screen bg-gray-50 flex items-center justify-center mt-6">
+        <div className="min-h-screen bg-background flex items-center justify-center mt-6">
             <div className="w-full max-w-md">
-                <Card className="bg-white border border-gray-200 rounded-xl shadow-lg">
+                <Card className="bg-card border border-border rounded-xl shadow-lg">
                     <CardHeader className="space-y-1">
-                        <CardTitle className="text-2xl text-blue-600 text-center">Verify Your Account</CardTitle>
-                        <CardDescription className="text-center text-gray-600">
+                        <CardTitle className="text-2xl text-primary text-center">Verify Your Account</CardTitle>
+                        <CardDescription className="text-center text-muted-foreground">
                             We've sent a 6-digit verification code to your email address
                         </CardDescription>
-                        <div className="flex items-center justify-center text-sm text-gray-600 mt-2">
+                        <div className="flex items-center justify-center text-sm text-muted-foreground mt-2">
                             <Mail className="h-4 w-4 mr-1" />
                             <span>user@example.com</span>
                         </div>
@@ -146,20 +146,20 @@ function Page() {
                     <CardContent>
                         <div className="space-y-6">
                             <div className="space-y-2">
-                                <Label htmlFor="name" className="text-gray-700">Full Name</Label>
+                                <Label htmlFor="name" className="text-foreground">Full Name</Label>
                                 <Input
                                     id="name"
                                     type="text"
                                     placeholder="Enter your full name"
                                     value={name}
                                     onChange={(e) => setName(e.target.value)}
-                                    className="text-gray-900 placeholder:text-gray-500 bg-white border border-gray-300 focus:border-blue-500 focus:ring-2 focus:ring-blue-200"
+                                    className="text-foreground placeholder:text-muted-foreground bg-card border border-border focus:border-primary focus:ring-2 focus:ring-blue-200"
                                     required
                                 />
                             </div>
 
                             <div className="space-y-2">
-                                <Label className="text-center block text-gray-700">Enter Verification Code</Label>
+                                <Label className="text-center block text-muted-foreground">Enter Verification Code</Label>
                                 <div className="flex justify-center space-x-2">
                                     {otp.map((digit, index) => (
                                         <Input
@@ -172,7 +172,7 @@ function Page() {
                                             onChange={(e) => handleChange(index, e.target.value)}
                                             onKeyDown={(e) => handleKeyDown(index, e)}
                                             onPaste={handlePaste}
-                                            className="w-12 h-12 text-center text-lg font-semibold text-gray-900 bg-white border border-gray-300 focus:border-blue-500 focus:ring-2 focus:ring-blue-200"
+                                            className="w-12 h-12 text-center text-lg font-semibold text-foreground bg-card border border-border focus:border-primary focus:ring-2 focus:ring-blue-200"
                                             autoComplete="off"
                                         />
                                     ))}
@@ -181,7 +181,7 @@ function Page() {
 
                             <Button
                                 onClick={handleVerify}
-                                className="w-full bg-orange-500 hover:bg-orange-600 text-white"
+                                className="w-full bg-primary hover:bg-primary/90 text-primary-foreground"
                                 disabled={loading}
                             >
                                 {loading ? (
@@ -195,28 +195,28 @@ function Page() {
                             </Button>
 
                             <div className="text-center space-y-2">
-                                <p className="text-sm text-gray-600">
+                                <p className="text-sm text-muted-foreground">
                                     Didn't receive the code?
                                 </p>
                                 {canResend ? (
                                     <Button
                                         variant="outline"
                                         onClick={handleResend}
-                                        className="text-sm bg-white border-gray-300 text-gray-700 hover:bg-gray-50 hover:text-blue-600 hover:border-blue-300"
+                                        className="text-sm bg-card border-border text-muted-foreground hover:bg-muted hover:text-primary hover:border-primary/30"
                                     >
                                         Resend OTP
                                     </Button>
                                 ) : (
-                                    <div className="flex items-center justify-center text-sm text-gray-500">
+                                    <div className="flex items-center justify-center text-sm text-muted-foreground">
                                         <Timer className="h-4 w-4 mr-1" />
                                         <span>Resend in {resendTimer}s</span>
                                     </div>
                                 )}
                             </div>
 
-                            <CardDescription className="text-center text-sm text-gray-600 mt-2">
+                            <CardDescription className="text-center text-sm text-muted-foreground mt-2">
                                 Already have an account?{" "}
-                                <a href="/signin" className="text-blue-600 hover:text-blue-700 hover:underline">
+                                <a href="/signin" className="text-primary hover:text-primary hover:underline">
                                     Sign in here
                                 </a>
                             </CardDescription>
@@ -229,3 +229,4 @@ function Page() {
 }
 
 export default Page
+

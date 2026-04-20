@@ -14,8 +14,9 @@ import {
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Loader2, ChevronDown } from "lucide-react";
 import { toast } from "sonner";
-import { signIn, signOut } from "next-auth/react";
+import { getSession, signIn } from "next-auth/react";
 import { useRouter } from "next/navigation";
+import { getDefaultRouteForRole } from "@/lib/role-routes";
 
 const RoleBasedSignInPage = () => {
   const [formData, setFormData] = useState<{ 
@@ -97,6 +98,7 @@ const RoleBasedSignInPage = () => {
         redirect: false,
         email,
         password,
+        role,
         employeeId,
       });
 
@@ -113,7 +115,8 @@ const RoleBasedSignInPage = () => {
       }
 
       toast.success(`Sign in successful as ${role}`);
-      router.push("/delivery_dashboard");
+        const session = await getSession();
+        router.replace(getDefaultRouteForRole(session?.user?.role));
       setLoading(false);
     } catch (err: any) {
       const errorMessage =

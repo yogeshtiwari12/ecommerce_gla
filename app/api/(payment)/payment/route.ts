@@ -11,8 +11,6 @@ export async function POST(request: Request) {
     const data = await request.json();
     const { userId, amount, paymentMethod, item_product_ids, cartItems } = data;
 
-    console.log('Payment POST Request:', { userId, amount, paymentMethod, item_product_ids, cartItems });
-
     if (!userId || !amount) {
       return NextResponse.json(
         { success: false, error: 'User ID and amount are required' },
@@ -72,15 +70,41 @@ export async function POST(request: Request) {
       });
     }
 
+    if (paymentMethod === 'upi') {
+      const orderId = `upi_${Date.now()}`;
+      const baseTransactionId = Date.now();
+      
+      // For multiple items, create array of transaction IDs for UPI
+      const paymentData = productIdsArray.length > 0 
+        ? productIdsArray.map((productId, index) => ({
+            orderId: `${orderId}_${index}`,
+            transactionId: `upi_txn_${baseTransactionId}_${index}_${Math.random().toString(36).substr(2, 9)}`,
+            item_product_id: productId,
+          }))
+        : itemsArray.map((item, index) => ({
+            orderId: `${orderId}_${index}`,
+            transactionId: `upi_txn_${baseTransactionId}_${index}_${Math.random().toString(36).substr(2, 9)}`,
+            item_product_id: item.id,
+            amount: item.user_product_price * item.user_product_cart_count,
+          }));
+
+      return NextResponse.json({
+        success: true,
+        message: 'UPI payment initiated',
+        payments: paymentData,
+        userId,
+        paymentAmount: Math.floor(amount),
+        paymentMethod: 'upi',
+      });
+    }
+
     const options = {
       amount: amount * 100,
       currency: 'INR',
       receipt: `receipt_${Date.now()}`,
     };
 
-    console.log('Creating Razorpay order:', options);
     const order = await razorpay.orders.create(options);
-    console.log('Razorpay order created:', order.id);
 
     // For multiple items, prepare payment data array
     const paymentData = productIdsArray.length > 0 

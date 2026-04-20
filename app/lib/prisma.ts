@@ -1,5 +1,3 @@
-// index.ts
-// Query your database using the Accelerate Client extension
 
 import { PrismaClient } from '@/generated/prisma/client/client'
 import { withAccelerate } from '@prisma/extension-accelerate'

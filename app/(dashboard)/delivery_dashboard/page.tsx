@@ -49,10 +49,8 @@ export default function EnhancedDeliveryDashboard() {
 
   const [userswithproduuct, setUsersWithProducts] = useState<any>(null)
   const current_user = useSession()
-  console.log("Current User Session:", current_user.data?.user);
 
 
-  console.log("Users with Products:", userswithproduuct)
   const deliveryAgent = useMemo(() => {
     if (!userswithproduuct || !Array.isArray(userswithproduuct)) {
       return {
@@ -132,13 +130,13 @@ export default function EnhancedDeliveryDashboard() {
       case "picked_up":
       case "in_transit":
       case "shipped":
-        return "bg-blue-100 text-blue-700 border-blue-300"
+        return "bg-primary/10 text-primary border-primary/30"
       case "delivered":
-        return "bg-green-100 text-green-700 border-green-300"
+        return "bg-success/10 text-success border-success/30"
       case "cancelled":
-        return "bg-orange-100 text-orange-700 border-orange-300"
+        return "bg-warning/10 text-warning border-warning/30"
       default:
-        return "bg-blue-100 text-blue-700 border-blue-300"
+        return "bg-primary/10 text-primary border-primary/30"
     }
   }
 
@@ -164,32 +162,34 @@ export default function EnhancedDeliveryDashboard() {
   const getPriorityColor = (priority: string) => {
     switch (priority) {
       case "high":
-        return "text-orange-600 bg-orange-100 border-orange-300"
+        return "text-destructive bg-destructive/10 border-destructive/30"
       case "medium":
-        return "text-blue-600 bg-blue-100 border-blue-300"
+        return "text-primary bg-primary/10 border-primary/30"
       case "low":
-        return "text-green-600 bg-green-100 border-green-300"
+        return "text-success bg-success/10 border-success/30"
       default:
-        return "text-gray-700 bg-gray-100 border-gray-300"
+        return "text-muted-foreground bg-muted border-border"
     }
   }
 
 
 
   const handleStatusChange = async (orderId: string, newStatus: string) => {
-    // Check if payment status is pending
     const order = getAllOrders.find((o) => o.id === orderId);
     if (!order) return;
 
+    if (!order.hasPaymentInfo) {
+      toast.error("Cannot update status — no payment record found for this order.");
+      return;
+    }
+
     if (order.paymentStatus?.toLowerCase() === "pending" && newStatus === "delivered") {
-      toast.error("Cannot mark order as delivered. Payment is still pending.");
+       toast.error("Cannot mark order as delivered. Payment is still pending.");
       return;
     }
 
     if (newStatus === "cancelled") {
-      console.log("Full order object:", order) // Log the entire order object for debugging
       const productId = order?.productId || orderId
-      console.log("productId for cancellation:", productId)
       setSelectedOrderForCancel(productId)
       setShowOtpModal(true)
 
@@ -202,7 +202,7 @@ export default function EnhancedDeliveryDashboard() {
       return;
     }
 
-    // For all other status changes, update using productId
+ 
     setUpdatingStatus(orderId);
     try {
       const order = getAllOrders.find((o) => o.id === orderId);
@@ -285,7 +285,7 @@ export default function EnhancedDeliveryDashboard() {
           city: product.shippingDetails?.city || "N/A",
           state: product.shippingDetails?.state || "N/A",
           pinCode: product.shippingDetails?.pinCode || "N/A",
-          status: product.productdeliverystatus || "pending",
+          status: (product.productdeliverystatus || "pending").replace("canceled", "cancelled"),
           items: product.cart_count || 1,
           eta: product.productdeliverystatus,
           distance: "N/A",
@@ -299,6 +299,7 @@ export default function EnhancedDeliveryDashboard() {
           paymentMethod: product.paymentDetails?.paymentMethod || product.paymentMethod || "N/A",
           paymentStatus: product.paymentDetails?.paymentStatus || product.paymentStatus || "N/A",
           transactionId: product.paymentDetails?.transactionId || product.transactionId || "N/A",
+          hasPaymentInfo: !!(product.paymentDetails?.paymentStatus || product.paymentStatus),
           notes: product.productnotes || "",
           priority: "medium",
           orderTime: product.paymentDetails?.createdAt
@@ -345,17 +346,6 @@ export default function EnhancedDeliveryDashboard() {
   })
 
   // Filter users to only show those with products that have product_buy_status: true
-  const filteredUsersWithProducts = useMemo(() => {
-    if (!userswithproduuct || !Array.isArray(userswithproduuct)) return []
-    return userswithproduuct
-      .map((user: any) => ({
-        ...user,
-        products: (user.products || []).filter(
-          (product: any) => product.isorderConfirmbyUser === true
-        )
-      }))
-      .filter((user: any) => user.products.length > 0)
-  }, [userswithproduuct])
 
   // Filter for dashboard - exclude delivered products
   const filteredUsersForDashboard = useMemo(() => {
@@ -371,8 +361,6 @@ export default function EnhancedDeliveryDashboard() {
       }))
       .filter((user: any) => user.products.length > 0)
   }, [userswithproduuct])
-
-  console.log(filteredUsersWithProducts)
 
   useEffect(() => {
     async function dispatchdata() {
@@ -444,20 +432,20 @@ export default function EnhancedDeliveryDashboard() {
   }
 
   const renderLeftPanel = () => (
-    <div className="w-80 bg-gradient-to-b from-blue-50 to-white border-r-2 border-blue-200 fixed h-full top-16 overflow-y-auto shadow-xl">
+    <div className="hidden md:block w-80 bg-gradient-to-b from-primary/10 to-card border-r-2 border-border fixed h-full top-16 overflow-y-auto shadow-xl">
       <div className="p-6 h-full flex flex-col">
         {/* Agent Profile */}
         <div className="mb-8">
-          <div className="bg-gradient-to-br from-white to-blue-50 rounded-xl p-4 border-1 border-blue-200 shadow-lg">
+          <div className="bg-gradient-to-br from-card to-primary/5 rounded-xl p-4 border border-border shadow-lg">
             <div className="flex flex-col items-center text-center">
               <div className="relative mb-2">
-                <div className="w-20 h-20 bg-gradient-to-br from-blue-500 to-blue-700 border-1 border-white rounded-full flex items-center justify-center text-white text-2xl font-bold shadow-xl">
+                <div className="w-20 h-20 bg-gradient-to-br from-primary to-primary/80 border border-primary-foreground/20 rounded-full flex items-center justify-center text-primary-foreground text-2xl font-bold shadow-xl">
                   {current_user.data?.user?.name.charAt(0)}
                 </div>
               </div>
               <div>
-                <h3 className="text-xl font-bold text-gray-900 mb-1">{current_user.data?.user?.name}</h3>
-                <p className="text-sm text-gray-600 mb-3">{current_user.data?.user?.email}</p>
+                <h3 className="text-xl font-bold text-foreground mb-1">{current_user.data?.user?.name}</h3>
+                <p className="text-sm text-muted-foreground mb-3">{current_user.data?.user?.email}</p>
               </div>
             </div>
           </div>
@@ -471,17 +459,17 @@ export default function EnhancedDeliveryDashboard() {
               <button
                 key={item.id}
                 className={`w-full flex items-center gap-4 p-4 text-left rounded-xl transition-all duration-200 border-2 ${activeTab === item.id
-                  ? "bg-gradient-to-r from-blue-500 to-blue-600 text-white border-blue-600 shadow-lg transform scale-105"
-                  : "bg-white text-gray-800 border-gray-200 hover:border-blue-300 hover:bg-blue-50 hover:shadow-md"
+                  ? "bg-gradient-to-r from-primary to-primary/80 text-primary-foreground border-primary shadow-lg transform scale-105"
+                  : "bg-card text-foreground border-border hover:border-primary/50 hover:bg-primary/5 hover:shadow-md"
                   }`}
                 onClick={() => setActiveTab(item.id)}
               >
-                <Icon className={`h-5 w-5 ${activeTab === item.id ? "text-white" : "text-blue-600"}`} />
+                <Icon className={`h-5 w-5 ${activeTab === item.id ? "text-primary-foreground" : "text-primary"}`} />
                 <div className="text-left flex-1">
-                  <p className={`font-semibold ${activeTab === item.id ? "text-white" : "text-gray-900"}`}>
+                  <p className={`font-semibold ${activeTab === item.id ? "text-primary-foreground" : "text-foreground"}`}>
                     {item.label}
                   </p>
-                  <p className={`text-xs ${activeTab === item.id ? "text-blue-100" : "text-gray-500"}`}>
+                  <p className={`text-xs ${activeTab === item.id ? "text-primary-foreground/70" : "text-muted-foreground"}`}>
                     {item.description}
                   </p>
                 </div>
@@ -491,8 +479,8 @@ export default function EnhancedDeliveryDashboard() {
         </nav>
 
         {/* Sign Out */}
-        <div className="pt-6 border-t-2 border-blue-200">
-          <button className="w-full flex items-center gap-4 p-4 text-gray-700 bg-white hover:bg-red-50 hover:text-red-600 hover:border-red-300 transition-all duration-200 rounded-xl border-2 border-gray-200 shadow-sm">
+        <div className="pt-6 border-t-2 border-border">
+          <button className="w-full flex items-center gap-4 p-4 text-foreground bg-card hover:bg-destructive/10 hover:text-destructive hover:border-destructive/30 transition-all duration-200 rounded-xl border-2 border-border shadow-sm">
             <LogOut className="h-5 w-5" />
             <span className="font-semibold text-sm">Sign Out</span>
           </button>
@@ -506,22 +494,22 @@ export default function EnhancedDeliveryDashboard() {
     return (
       <div className="fixed inset-0 bg-black/20 flex items-center justify-center z-50">
         <form
-          className="bg-gray-50 border border-gray-200 rounded-2xl p-8 max-w-md w-full mx-4 shadow-lg flex flex-col gap-6"
+          className="bg-muted border border-border rounded-2xl p-8 max-w-md w-full mx-4 shadow-lg flex flex-col gap-6"
           onSubmit={(e) => {
             e.preventDefault()
             if (!otpVerifying) handleOtpVerification()
           }}
         >
           <div className="text-center">
-            <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4 border border-gray-200">
-              <AlertCircle className="w-8 h-8 text-orange-600" />
+            <div className="w-16 h-16 bg-muted rounded-full flex items-center justify-center mx-auto mb-4 border border-border">
+              <AlertCircle className="w-8 h-8 text-warning" />
             </div>
-            <h3 className="text-xl font-bold text-gray-900 mb-2">Cancel Order Confirmation</h3>
-            <p className="text-gray-600">Please enter OTP to cancel order {selectedOrderForCancel}</p>
-            <p className="text-xs text-gray-500 mt-2">(Demo OTP: 1234)</p>
+            <h3 className="text-xl font-bold text-foreground mb-2">Cancel Order Confirmation</h3>
+            <p className="text-muted-foreground">Please enter OTP to cancel order {selectedOrderForCancel}</p>
+            <p className="text-xs text-muted-foreground mt-2">(Demo OTP: 1234)</p>
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Enter OTP</label>
+            <label className="block text-sm font-medium text-muted-foreground mb-2">Enter OTP</label>
             <input
               type="text"
               inputMode="numeric"
@@ -530,7 +518,7 @@ export default function EnhancedDeliveryDashboard() {
               onChange={(e) => setCancelOtp(e.target.value.replace(/\D/g, ""))}
               placeholder="Enter 4-digit OTP"
               maxLength={6}
-              className="w-full px-4 py-3 bg-gray-50 border border-gray-300 rounded-lg text-gray-900 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500 text-center text-2xl"
+              className="w-full px-4 py-3 bg-muted border border-border rounded-lg text-foreground placeholder-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/20 text-center text-2xl"
               autoFocus
             />
           </div>
@@ -542,14 +530,14 @@ export default function EnhancedDeliveryDashboard() {
                 setCancelOtp("")
                 setSelectedOrderForCancel(null)
               }}
-              className="flex-1 px-4 py-3 bg-gray-100 hover:bg-gray-200 text-gray-800 rounded-lg transition-all border border-gray-200"
+              className="flex-1 px-4 py-3 bg-muted hover:bg-muted text-foreground rounded-lg transition-all border border-border"
             >
               Cancel
             </button>
             <button
               type="submit"
               disabled={cancelOtp.length !== 6 || otpVerifying}
-              className="flex-1 px-4 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+              className="flex-1 px-4 py-3 bg-warning hover:bg-warning/90 text-warning-foreground rounded-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {otpVerifying ? "Verifying..." : "Confirm Cancel"}
             </button>
@@ -570,48 +558,48 @@ export default function EnhancedDeliveryDashboard() {
             {/* Header */}
             <div className="mb-8 ">
               <div className="flex items-center justify-center">
-                <h1 className="text-3xl text-center font-bold text-gray-900 mb-2">Delivery Dashboard</h1>
+                <h1 className="text-3xl text-center font-bold text-foreground mb-2">Delivery Dashboard</h1>
               </div>
             </div>
 
             {/* Stats Cards */}
             <div className="grid grid-cols-1 md:grid-cols-5 gap-6 mb-8">
               {/* Total Orders - Emerald */}
-              <div className="border border-gray-200 rounded-2xl p-6 bg-gray-100">
+              <div className="border border-border rounded-2xl p-6 bg-card">
                 <div className="flex items-center gap-4">
-                  <div className="w-12 h-12 bg-blue-100 rounded-xl flex items-center justify-center">
-                    <Package className="w-6 h-6 text-blue-600" />
+                  <div className="w-12 h-12 bg-primary/10 rounded-xl flex items-center justify-center">
+                    <Package className="w-6 h-6 text-primary" />
                   </div>
                   <div>
-                    <p className="text-2xl font-bold text-gray-900">{getAllOrders.length}</p>
-                    <p className="text-gray-600 text-sm">Total Orders</p>
+                    <p className="text-2xl font-bold text-foreground">{getAllOrders.length}</p>
+                    <p className="text-muted-foreground text-sm">Total Orders</p>
                   </div>
                 </div>
               </div>
 
               {/* Pending - Amber */}
-              <div className="border border-gray-200 rounded-2xl p-6 bg-gray-100">
+              <div className="border border-border rounded-2xl p-6 bg-card">
                 <div className="flex items-center gap-4">
-                  <div className="w-12 h-12 bg-blue-100 rounded-xl flex items-center justify-center">
-                    <Clock className="w-6 h-6 text-blue-600" />
+                  <div className="w-12 h-12 bg-primary/10 rounded-xl flex items-center justify-center">
+                    <Clock className="w-6 h-6 text-primary" />
                   </div>
                   <div>
-                    <p className="text-2xl font-bold text-gray-900">
+                    <p className="text-2xl font-bold text-foreground">
                       {getAllOrders.filter((o) => o.status === "pending").length}
                     </p>
-                    <p className="text-gray-600 text-sm">Pending</p>
+                    <p className="text-muted-foreground text-sm">Pending</p>
                   </div>
                 </div>
               </div>
 
               {/* Active - Blue */}
-              <div className="border border-gray-200 rounded-2xl p-6 bg-gray-100">
+              <div className="border border-border rounded-2xl p-6 bg-card">
                 <div className="flex items-center gap-4">
-                  <div className="w-12 h-12 bg-blue-100 rounded-xl flex items-center justify-center">
-                    <Truck className="w-6 h-6 text-blue-600" />
+                  <div className="w-12 h-12 bg-primary/10 rounded-xl flex items-center justify-center">
+                    <Truck className="w-6 h-6 text-primary" />
                   </div>
                   <div>
-                    <p className="text-2xl font-bold text-gray-900">
+                    <p className="text-2xl font-bold text-foreground">
                       {
                         getAllOrders.filter(
                           (o) =>
@@ -621,34 +609,34 @@ export default function EnhancedDeliveryDashboard() {
                         ).length
                       }
                     </p>
-                    <p className="text-gray-600 text-sm">Active</p>
+                    <p className="text-muted-foreground text-sm">Active</p>
                   </div>
                 </div>
               </div>
 
               {/* Delivered - Purple */}
-              <div className="border border-gray-200 rounded-2xl p-6 bg-gray-100">
+              <div className="border border-border rounded-2xl p-6 bg-card">
                 <div className="flex items-center gap-4">
-                  <div className="w-12 h-12 bg-green-100 rounded-xl flex items-center justify-center">
-                    <CheckCircle className="w-6 h-6 text-green-600" />
+                  <div className="w-12 h-12 bg-success/10 rounded-xl flex items-center justify-center">
+                    <CheckCircle className="w-6 h-6 text-success" />
                   </div>
                   <div>
-                    <p className="text-2xl font-bold text-gray-900">
+                    <p className="text-2xl font-bold text-foreground">
                       {getAllOrders.filter((o) => o.status === "delivered").length}
                     </p>
-                    <p className="text-gray-600 text-sm">Delivered</p>
+                    <p className="text-muted-foreground text-sm">Delivered</p>
                   </div>
                 </div>
               </div>
 
               {/* Total Value - Green */}
-              <div className="border border-gray-200 rounded-2xl p-6 bg-gray-100">
+              <div className="border border-border rounded-2xl p-6 bg-card">
                 <div className="flex items-center gap-4">
-                  <div className="w-12 h-12 bg-green-100 rounded-xl flex items-center justify-center">
-                    <DollarSign className="w-6 h-6 text-green-600" />
+                  <div className="w-12 h-12 bg-success/10 rounded-xl flex items-center justify-center">
+                    <DollarSign className="w-6 h-6 text-success" />
                   </div>
                   <div>
-                    <p className="text-2xl font-bold text-gray-900">
+                    <p className="text-2xl font-bold text-foreground">
                       ₹{getAllOrders.reduce((sum, order) => sum + order.amount, 0)}
                     </p>
                   </div>
@@ -658,19 +646,19 @@ export default function EnhancedDeliveryDashboard() {
 
             {/* Enhanced Multi-Order Customer Management */}
             {customersWithMultipleOrders.length > 0 && (
-              <div className="mb-8 bg-gray-100 rounded-2xl border border-gray-200 p-8 shadow-sm">
+              <div className="mb-8 bg-card rounded-2xl border border-border p-8 shadow-sm">
                 <div className="flex items-center justify-between mb-6">
                   <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 bg-blue-100 rounded-xl flex items-center justify-center">
-                      <Users className="w-5 h-5 text-blue-600" />
+                    <div className="w-10 h-10 bg-primary/10 rounded-xl flex items-center justify-center">
+                      <Users className="w-5 h-5 text-primary" />
                     </div>
-                    <h2 className="text-xl font-bold text-blue-700">Multi-Order Customer Management</h2>
+                    <h2 className="text-xl font-bold text-primary">Multi-Order Customer Management</h2>
                   </div>
                   {/* Close button */}
                   {selectedCustomer && (
                     <button
                       onClick={() => { setSelectedCustomer(null); setSelectedOrderId(null) }}
-                      className="w-8 h-8 bg-gray-100 hover:bg-gray-200 border border-gray-300 rounded-lg flex items-center justify-center text-gray-700 transition-all"
+                      className="w-8 h-8 bg-muted hover:bg-muted/80 border border-border rounded-lg flex items-center justify-center text-foreground transition-all"
                       title="Close Customer Management"
                     >
                       <X className="w-5 h-5" />
@@ -680,10 +668,10 @@ export default function EnhancedDeliveryDashboard() {
 
                 <div className="grid lg:grid-cols-3 gap-6 mb-6">
                   {/* Customer Selection Card */}
-                  <div className="bg-gray-100 rounded-xl p-6 border border-gray-200">
-                    <label className="block text-gray-700 mb-3 font-medium">Select Customer:</label>
+                  <div className="bg-muted rounded-xl p-6 border border-border">
+                    <label className="block text-foreground mb-3 font-medium">Select Customer:</label>
                     <select
-                      className="w-full px-4 py-3 bg-gray-50 border border-gray-300 rounded-lg text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all"
+                      className="w-full px-4 py-3 bg-card border border-border rounded-lg text-foreground focus:outline-none focus:ring-2 focus:ring-primary transition-all"
                       value={selectedCustomer || ""}
                       onChange={(e) => { setSelectedCustomer(e.target.value); setSelectedOrderId(null) }}
                       title="Select customer"
@@ -699,27 +687,27 @@ export default function EnhancedDeliveryDashboard() {
 
                   {/* Customer Statistics Card */}
                   {selectedCustomer && (
-                    <div className="bg-gray-100 rounded-xl p-6 border border-gray-200">
-                      <label className="block text-gray-700 mb-3 font-medium">Customer Statistics:</label>
+                    <div className="bg-muted rounded-xl p-6 border border-border">
+                      <label className="block text-muted-foreground mb-3 font-medium">Customer Statistics:</label>
                       {(() => {
                         const stats = getCustomerStats(selectedCustomer)
                         return (
                           <div className="grid grid-cols-2 gap-3 text-sm">
-                            <div className="text-center p-2 bg-gray-50 rounded-lg">
-                              <p className="text-gray-600">Total Products</p>
-                              <p className="text-gray-900 font-bold text-lg">{stats.totalOrders}</p>
+                            <div className="text-center p-2 bg-muted rounded-lg">
+                              <p className="text-muted-foreground">Total Products</p>
+                              <p className="text-foreground font-bold text-lg">{stats.totalOrders}</p>
                             </div>
-                            <div className="text-center p-2 bg-gray-50 rounded-lg">
-                              <p className="text-gray-600">Total Amount</p>
-                              <p className="text-green-700 font-bold text-lg">₹{stats.totalAmount}</p>
+                            <div className="text-center p-2 bg-muted rounded-lg border border-border">
+                              <p className="text-muted-foreground">Total Amount</p>
+                              <p className="text-success font-bold text-lg">₹{stats.totalAmount}</p>
                             </div>
-                            <div className="text-center p-2 bg-gray-50 rounded-lg">
-                              <p className="text-gray-600">Active Products</p>
-                              <p className="text-blue-700 font-bold text-lg">{stats.activeOrders}</p>
+                            <div className="text-center p-2 bg-muted rounded-lg border border-border">
+                              <p className="text-muted-foreground">Active Products</p>
+                              <p className="text-primary font-bold text-lg">{stats.activeOrders}</p>
                             </div>
-                            <div className="text-center p-2 bg-gray-50 rounded-lg">
-                              <p className="text-gray-600">Delivered</p>
-                              <p className="text-green-700 font-bold text-lg">{stats.completedOrders}</p>
+                            <div className="text-center p-2 bg-muted rounded-lg border border-border">
+                              <p className="text-muted-foreground">Delivered</p>
+                              <p className="text-success font-bold text-lg">{stats.completedOrders}</p>
                             </div>
                           </div>
                         )
@@ -729,10 +717,10 @@ export default function EnhancedDeliveryDashboard() {
 
                   {/* Order Selection Card */}
                   {selectedCustomer && (
-                    <div className="bg-gray-100 rounded-xl p-6 border border-gray-200">
-                      <label className="block text-gray-700 mb-3 font-medium">Select Product:</label>
+                    <div className="bg-muted rounded-xl p-6 border border-border">
+                      <label className="block text-muted-foreground mb-3 font-medium">Select Product:</label>
                       <select
-                        className="w-full px-4 py-3 bg-gray-50 border border-gray-300 rounded-lg text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all"
+                        className="w-full px-4 py-3 bg-muted border border-border rounded-lg text-foreground focus:outline-none focus:ring-2 focus:ring-primary/20 transition-all"
                         value={selectedOrderId || ""}
                         onChange={(e) => setSelectedOrderId(e.target.value)}
                         title="Select product"
@@ -760,7 +748,7 @@ export default function EnhancedDeliveryDashboard() {
                 </div>
 
                 {selectedCustomer && selectedOrderId && (
-                  <div className="bg-gray-100 rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+                  <div className="bg-muted rounded-xl border border-border shadow-sm overflow-hidden">
                     {(() => {
                       const order = getAllOrders.find((o) => o.id === selectedOrderId)
                       if (!order) return null
@@ -773,7 +761,7 @@ export default function EnhancedDeliveryDashboard() {
                                 <ShoppingBag className="w-6 h-6 text-white" />
                               </div>
                               <div>
-                                <h3 className="text-xl font-bold text-gray-900">{order.productName}</h3>
+                                <h3 className="text-xl font-bold text-foreground">{order.productName}</h3>
                                 <span className={`px-3 py-1 rounded-full text-xs font-medium border ${getPriorityColor(order.priority)}`}>
                                   {order.priority} priority
                                 </span>
@@ -783,48 +771,48 @@ export default function EnhancedDeliveryDashboard() {
                             <div className="grid md:grid-cols-2 gap-6">
                               {/* Customer Details */}
                               <div className="space-y-4">
-                                <div className="bg-gray-100 rounded-lg p-4 border border-gray-200">
-                                  <h4 className="text-gray-700 text-sm mb-3">Customer Details</h4>
+                                <div className="bg-muted rounded-lg p-4 border border-border">
+                                  <h4 className="text-muted-foreground text-sm mb-3">Customer Details</h4>
                                   <div className="space-y-2">
                                     <div className="flex justify-between">
-                                      <span className="text-gray-600 text-sm">Name:</span>
-                                      <span className="text-gray-900 font-medium">{order.customer}</span>
+                                      <span className="text-muted-foreground text-sm">Name:</span>
+                                      <span className="text-foreground font-medium">{order.customer}</span>
                                     </div>
                                     <div className="flex justify-between">
-                                      <span className="text-gray-600 text-sm">Phone:</span>
-                                      <span className="text-gray-800">{order.phone}</span>
+                                      <span className="text-muted-foreground text-sm">Phone:</span>
+                                      <span className="text-foreground">{order.phone}</span>
                                     </div>
                                   </div>
                                 </div>
 
                                 {/* Order Details */}
-                                <div className="bg-gray-100 rounded-lg p-4 border border-gray-200">
-                                  <h4 className="text-gray-700 text-sm mb-3">Order Details</h4>
+                                <div className="bg-muted rounded-lg p-4 border border-border">
+                                  <h4 className="text-muted-foreground text-sm mb-3">Order Details</h4>
                                   <div className="space-y-2">
                                     <div className="flex justify-between">
-                                      <span className="text-gray-600 text-sm">Amount:</span>
-                                      <span className="text-green-700 font-semibold">₹{order.amount}</span>
+                                      <span className="text-muted-foreground text-sm">Amount:</span>
+                                      <span className="text-success font-semibold">₹{order.amount}</span>
                                     </div>
                                     <div className="flex justify-between">
-                                      <span className="text-gray-600 text-sm">Unit Price:</span>
-                                      <span className="text-blue-700 font-semibold">₹{order.productprice}</span>
+                                      <span className="text-muted-foreground text-sm">Unit Price:</span>
+                                      <span className="text-primary font-semibold">₹{order.productprice}</span>
                                     </div>
                                     <div className="flex justify-between">
-                                      <span className="text-gray-600 text-sm">Cart Count:</span>
-                                      <span className="text-blue-700 font-semibold">{order.cart_count}</span>
+                                      <span className="text-muted-foreground text-sm">Cart Count:</span>
+                                      <span className="text-primary font-semibold">{order.cart_count}</span>
                                     </div>
                                     <div className="flex justify-between">
-                                      <span className="text-gray-600 text-sm">Status:</span>
+                                      <span className="text-muted-foreground text-sm">Status:</span>
                                       <span
                                         className={`px-2 py-1 rounded-full text-xs font-medium border ${order.status === "pending"
-                                          ? "bg-blue-100 text-blue-700 border-blue-300"
+                                          ? "bg-primary/10 text-primary border-primary/30"
                                           : order.status === "picked_up"
-                                            ? "bg-blue-100 text-blue-700 border-blue-300"
+                                            ? "bg-primary/10 text-primary border-primary/30"
                                             : order.status === "in_transit"
-                                              ? "bg-blue-100 text-blue-700 border-blue-300"
+                                              ? "bg-primary/10 text-primary border-primary/30"
                                               : order.status === "delivered"
-                                                ? "bg-green-100 text-green-700 border-green-300"
-                                                : "bg-orange-100 text-orange-700 border-orange-300"
+                                                ? "bg-success/10 text-success border-success/30"
+                                                : "bg-warning/10 text-warning border-warning/30"
                                           }`}
                                       >
                                         {getStatusText(order.status)}
@@ -836,34 +824,34 @@ export default function EnhancedDeliveryDashboard() {
 
                               {/* Delivery Info / Address / Notes */}
                               <div className="space-y-4">
-                                <div className="bg-gray-100 rounded-lg p-4 border border-gray-200">
-                                  <h4 className="text-gray-700 text-sm mb-3">Delivery Info</h4>
+                                <div className="bg-muted rounded-lg p-4 border border-border">
+                                  <h4 className="text-muted-foreground text-sm mb-3">Delivery Info</h4>
                                   <div className="space-y-2">
                                     <div className="flex justify-between">
-                                      <span className="text-gray-600 text-sm">ETA:</span>
-                                      <span className="text-gray-800">{order.eta}</span>
+                                      <span className="text-muted-foreground text-sm">ETA:</span>
+                                      <span className="text-foreground">{order.eta}</span>
                                     </div>
                                     <div className="flex justify-between">
-                                      <span className="text-gray-600 text-sm">Distance:</span>
-                                      <span className="text-gray-800">{order.distance}</span>
+                                      <span className="text-muted-foreground text-sm">Distance:</span>
+                                      <span className="text-foreground">{order.distance}</span>
                                     </div>
                                   </div>
                                 </div>
 
-                                <div className="bg-gray-100 rounded-lg p-4 border border-gray-200">
-                                  <h4 className="text-gray-700 text-sm mb-3">Address</h4>
+                                <div className="bg-muted rounded-lg p-4 border border-border">
+                                  <h4 className="text-muted-foreground text-sm mb-3">Address</h4>
                                   <div className="space-y-1">
-                                    <p className="text-gray-800 text-sm">{order.address}</p>
-                                    <p className="text-gray-600 text-xs">
+                                    <p className="text-foreground text-sm">{order.address}</p>
+                                    <p className="text-muted-foreground text-xs">
                                       {order.city}, {order.state} - {order.pinCode}
                                     </p>
                                   </div>
                                 </div>
 
                                 {order.notes && (
-                                  <div className="bg-gray-100 rounded-lg p-4 border border-gray-200">
-                                    <h4 className="text-gray-700 text-sm mb-3">Notes</h4>
-                                    <p className="text-gray-700 text-sm italic">{order.notes}</p>
+                                  <div className="bg-muted rounded-lg p-4 border border-border">
+                                    <h4 className="text-muted-foreground text-sm mb-3">Notes</h4>
+                                    <p className="text-muted-foreground text-sm italic">{order.notes}</p>
                                   </div>
                                 )}
                               </div>
@@ -871,24 +859,24 @@ export default function EnhancedDeliveryDashboard() {
                           </div>
 
                           {/* Actions Panel */}
-                          <div className="bg-gray-100 p-6 border-l border-gray-200">
-                            <h4 className="text-lg font-semibold text-gray-900 mb-6">Order Management</h4>
+                          <div className="bg-muted p-6 border-l border-border">
+                            <h4 className="text-lg font-semibold text-foreground mb-6">Order Management</h4>
 
                             {/* Status Change Dropdown */}
                             {order.status !== "delivered" && order.status !== "cancelled" && (
                               <div className="mb-6">
-                                <label className="block text-gray-700 mb-3 font-medium text-sm">Update Status:</label>
+                                <label className="block text-muted-foreground mb-3 font-medium text-sm">Update Status:</label>
                                 {order.paymentStatus?.toLowerCase() === "pending" && (
-                                  <div className="mb-3 bg-yellow-50 border border-yellow-200 rounded-lg p-3 flex items-start gap-2">
-                                    <AlertCircle className="w-4 h-4 text-yellow-600 flex-shrink-0 mt-0.5" />
-                                    <p className="text-xs text-yellow-700">
+                                  <div className="mb-3 bg-warning/5 border border-warning/20 rounded-lg p-3 flex items-start gap-2">
+                                    <AlertCircle className="w-4 h-4 text-warning flex-shrink-0 mt-0.5" />
+                                    <p className="text-xs text-warning">
                                       Payment is pending. Cannot mark as delivered.
                                     </p>
                                   </div>
                                 )}
                                 <select
                                   title="Update Order Status"
-                                  className="w-full px-4 py-3 bg-gray-50 border border-gray-300 rounded-lg text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all duration-200"
+                                  className="w-full px-4 py-3 bg-muted border border-border rounded-lg text-foreground focus:outline-none focus:ring-2 focus:ring-primary/20 transition-all duration-200"
                                   value=""
                                   onChange={(e) => { if (e.target.value) { handleStatusChange(order.id, e.target.value); e.target.value = "" } }}
                                   disabled={updatingStatus === order.id}
@@ -909,32 +897,32 @@ export default function EnhancedDeliveryDashboard() {
 
                             {/* Completed / Cancelled states */}
                             {order.status === "delivered" && (
-                              <div className="text-center p-4 bg-gray-50 rounded-lg border border-gray-200 mb-6">
-                                <CheckCircle className="w-8 h-8 text-green-600 mx-auto mb-2" />
-                                <span className="text-gray-700 font-medium">Order Completed Successfully</span>
+                              <div className="text-center p-4 bg-muted rounded-lg border border-border mb-6">
+                                <CheckCircle className="w-8 h-8 text-success mx-auto mb-2" />
+                                <span className="text-muted-foreground font-medium">Order Completed Successfully</span>
                               </div>
                             )}
                             {order.status === "cancelled" && (
-                              <div className="text-center p-4 bg-gray-50 rounded-lg border border-gray-200 mb-6">
-                                <X className="w-8 h-8 text-orange-600 mx-auto mb-2" />
-                                <span className="text-gray-700 font-medium">Order Cancelled</span>
+                              <div className="text-center p-4 bg-muted rounded-lg border border-border mb-6">
+                                <X className="w-8 h-8 text-warning mx-auto mb-2" />
+                                <span className="text-muted-foreground font-medium">Order Cancelled</span>
                               </div>
                             )}
 
                             {/* Quick Actions */}
                             <div className="space-y-4">
-                              <h5 className="text-sm font-medium text-gray-700">Quick Actions</h5>
+                              <h5 className="text-sm font-medium text-muted-foreground">Quick Actions</h5>
                               <div className="grid grid-cols-2 gap-3">
                                 <button
                                   onClick={() => window.open(`tel:${order.phone}`)}
-                                  className="p-3 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-all flex items-center justify-center"
+                                  className="p-3 bg-primary hover:bg-primary/90 text-primary-foreground rounded-lg transition-all flex items-center justify-center"
                                   title="Call Customer"
                                 >
                                   <Phone className="w-5 h-5" />
                                 </button>
                                 <button
                                   onClick={() => window.open(`https://maps.google.com/?q=${encodeURIComponent(order.address)}`, "_blank")}
-                                  className="p-3 bg-green-600 hover:bg-green-700 text-white rounded-lg transition-all flex items-center justify-center"
+                                  className="p-3 bg-success hover:bg-success/90 text-white rounded-lg transition-all flex items-center justify-center"
                                   title="Navigate"
                                 >
                                   <Navigation className="w-5 h-5" />
@@ -944,7 +932,7 @@ export default function EnhancedDeliveryDashboard() {
 
                             {/* Status Update Indicator */}
                             {updatingStatus === order.id && (
-                              <div className="mt-4 flex items-center gap-2 text-blue-600 text-sm">
+                              <div className="mt-4 flex items-center gap-2 text-primary text-sm">
                                 <Timer className="w-4 h-4 animate-spin" />
                                 Updating order status...
                               </div>
@@ -971,44 +959,44 @@ export default function EnhancedDeliveryDashboard() {
                   return (
                     <div
                       key={user._id || user.username + idx}
-                      className="bg-gray-100 border border-gray-200 rounded-2xl p-6 shadow-sm hover:shadow-md transition-all duration-300"
+                      className="bg-muted border border-border rounded-2xl p-6 shadow-sm hover:shadow-md transition-all duration-300"
                     >
                       {/* User Header */}
                       <div className="flex items-center justify-between mb-6">
                         <div className="flex items-center gap-3">
-                          <div className="w-12 h-12 bg-blue-100 rounded-xl flex items-center justify-center">
-                            <User className="w-6 h-6 text-blue-600" />
+                          <div className="w-12 h-12 bg-primary/10 rounded-xl flex items-center justify-center">
+                            <User className="w-6 h-6 text-primary" />
                           </div>
                           <div>
-                            <h3 className="font-bold text-gray-900 text-lg">{user.username}</h3>
+                            <h3 className="font-bold text-foreground text-lg">{user.username}</h3>
                             {/* <div className="flex items-center gap-2 mt-1">
                               {user.userphone ? (
                                 <>
-                                  <Phone className="w-4 h-4 text-blue-600" />
-                                  <span className="text-gray-700 text-sm">{user.userphone}</span>
+                                  <Phone className="w-4 h-4 text-primary" />
+                                  <span className="text-muted-foreground text-sm">{user.userphone}</span>
                                 </>
                               ) : (
-                                <span className="text-orange-600 text-sm">Null</span>
+                                <span className="text-warning text-sm">Null</span>
                               )}
                             </div> */}
                           </div>
                         </div>
                         <div className="text-right">
-                          <div className="text-green-700 font-bold text-xl">₹{totalValue.toLocaleString()}</div>
-                          <div className="text-gray-500 text-xs">{user.products?.length || 0} products</div>
+                          <div className="text-success font-bold text-xl">₹{totalValue.toLocaleString()}</div>
+                          <div className="text-muted-foreground text-xs">{user.products?.length || 0} products</div>
                         </div>
                       </div>
 
                       {/* Products Section */}
                       {user.products && user.products.length > 0 ? (
                         <div className="space-y-4">
-                          <div className="flex items-center gap-2 pb-2 border-b border-gray-200">
-                            <div className="w-6 h-6 bg-blue-100 rounded-lg flex items-center justify-center">
-                              <Package className="w-4 h-4 text-blue-600" />
+                          <div className="flex items-center gap-2 pb-2 border-b border-border">
+                            <div className="w-6 h-6 bg-primary/10 rounded-lg flex items-center justify-center">
+                              <Package className="w-4 h-4 text-primary" />
                             </div>
-                            <span className="text-blue-700 font-semibold text-sm">Products</span>
-                            <div className="ml-auto bg-gray-100 px-2 py-1 rounded-full">
-                              <span className="text-gray-700 text-xs">
+                            <span className="text-primary font-semibold text-sm">Products</span>
+                            <div className="ml-auto bg-muted px-2 py-1 rounded-full">
+                              <span className="text-muted-foreground text-xs">
                                 {user.products.length}
                               </span>
                             </div>
@@ -1023,9 +1011,9 @@ export default function EnhancedDeliveryDashboard() {
 //     const container = document.getElementById(`products-slider-${user._id}`)
 //     if (container) container.scrollBy({ top: -250, behavior: 'smooth' })
 //   }}
-//   className="absolute left-1/2 -translate-x-1/2 -top-3 bg-white hover:bg-blue-50 border-2 border-gray-300 hover:border-blue-500 rounded-full p-2 shadow-lg opacity-0 group-hover:opacity-100 transition-all duration-200 z-10"
+//   className="absolute left-1/2 -translate-x-1/2 -top-3 bg-card hover:bg-primary/10 border-2 border-border hover:border-primary rounded-full p-2 shadow-lg opacity-0 group-hover:opacity-100 transition-all duration-200 z-10"
 // >
-//   <ChevronLeft className="w-5 h-5 text-gray-700 rotate-90" />
+//   <ChevronLeft className="w-5 h-5 text-muted-foreground rotate-90" />
 // </button>
 )} */}
 
@@ -1042,17 +1030,17 @@ export default function EnhancedDeliveryDashboard() {
                               {user.products.map((prod: any, i: number) => {
                                 const getStatusColor = (status: string) => {
                                   const s = (status || "").toLowerCase()
-                                  if (s === "delivered") return "bg-green-100 text-green-700 border-green-300"
-                                  if (s === "cancelled") return "bg-orange-100 text-orange-700 border-orange-300"
-                                  return "bg-blue-100 text-blue-700 border-blue-300"
+                                  if (s === "delivered") return "bg-success/10 text-success border-success/30"
+                                  if (s === "cancelled") return "bg-warning/10 text-warning border-warning/30"
+                                  return "bg-primary/10 text-primary border-primary/30"
                                 }
 
                                 const getPaymentStatusColor = (status: string) => {
                                   const s = (status || "").toLowerCase()
-                                  if (s === "success") return "bg-green-100 text-green-700 border-green-300"
-                                  if (s === "pending") return "bg-yellow-100 text-yellow-700 border-yellow-300"
-                                  if (s === "failed") return "bg-red-100 text-red-700 border-red-300"
-                                  return "bg-gray-100 text-gray-700 border-gray-300"
+                                  if (s === "success") return "bg-success/10 text-success border-success/30"
+                                  if (s === "pending") return "bg-warning/10 text-warning border-warning/30"
+                                  if (s === "failed") return "bg-destructive/10 text-destructive border-destructive/30"
+                                  return "bg-muted text-muted-foreground border-border"
                                 }
 
                                 // Fix: Calculate item total correctly
@@ -1063,25 +1051,25 @@ export default function EnhancedDeliveryDashboard() {
                                 return (
                                   <div
                                     key={i}
-                                    className="bg-white border-2 border-gray-200 rounded-xl p-4 hover:shadow-lg hover:border-blue-300 transition-all duration-200"
+                                    className="bg-card border-2 border-border rounded-xl p-4 hover:shadow-lg hover:border-primary/30 transition-all duration-200"
                                   >
                                     <div className="flex items-start justify-between gap-3 mb-3">
                                       <div className="flex-1 min-w-0">
-                                        <h4 className="font-semibold text-gray-900 text-base mb-2">
+                                        <h4 className="font-semibold text-foreground text-base mb-2">
                                           {prod.productname}
                                         </h4>
-                                        <div className="space-y-1.5 bg-gray-50 rounded-lg p-3 border border-gray-200">
+                                        <div className="space-y-1.5 bg-muted rounded-lg p-3 border border-border">
                                           <div className="flex justify-between items-center">
-                                            <span className="text-xs text-gray-600">Unit Price:</span>
-                                            <span className="text-sm font-medium text-gray-900">₹{itemUnitPrice.toLocaleString()}</span>
+                                            <span className="text-xs text-muted-foreground">Unit Price:</span>
+                                            <span className="text-sm font-medium text-foreground">₹{itemUnitPrice.toLocaleString()}</span>
                                           </div>
                                           <div className="flex justify-between items-center">
-                                            <span className="text-xs text-gray-600">Quantity:</span>
-                                            <span className="text-sm font-medium text-gray-900">{itemCartCount}</span>
+                                            <span className="text-xs text-muted-foreground">Quantity:</span>
+                                            <span className="text-sm font-medium text-foreground">{itemCartCount}</span>
                                           </div>
-                                          <div className="flex justify-between items-center pt-1.5 border-t border-gray-300">
-                                            <span className="text-sm font-semibold text-gray-700">Total:</span>
-                                            <span className="text-base font-bold text-green-700">₹{itemTotal.toLocaleString()}</span>
+                                          <div className="flex justify-between items-center pt-1.5 border-t border-border">
+                                            <span className="text-sm font-semibold text-muted-foreground">Total:</span>
+                                            <span className="text-base font-bold text-success">₹{itemTotal.toLocaleString()}</span>
                                           </div>
                                         </div>
                                       </div>
@@ -1089,7 +1077,7 @@ export default function EnhancedDeliveryDashboard() {
 
                                     <div className="grid grid-cols-2 gap-2">
                                       <div className="space-y-1">
-                                        <p className="text-xs text-gray-600 font-medium">Delivery Status</p>
+                                        <p className="text-xs text-muted-foreground font-medium">Delivery Status</p>
                                         <span
                                           className={`inline-flex items-center justify-center w-full px-2.5 py-1.5 rounded-lg text-xs font-medium border ${getStatusColor(
                                             prod.productdeliverystatus,
@@ -1099,7 +1087,7 @@ export default function EnhancedDeliveryDashboard() {
                                         </span>
                                       </div>
                                       <div className="space-y-1">
-                                        <p className="text-xs text-gray-600 font-medium">Payment Status</p>
+                                        <p className="text-xs text-muted-foreground font-medium">Payment Status</p>
                                         <span
                                           className={`inline-flex items-center justify-center w-full px-2.5 py-1.5 rounded-lg text-xs font-medium border ${getPaymentStatusColor(
                                             prod.paymentStatus,
@@ -1121,11 +1109,11 @@ export default function EnhancedDeliveryDashboard() {
                         </div>
                       ) : (
                         <div className="text-center py-8">
-                          <div className="w-16 h-16 bg-gray-100 rounded-xl flex items-center justify-center mx-auto mb-3">
-                            <Package className="w-8 h-8 text-gray-400" />
+                          <div className="w-16 h-16 bg-muted rounded-xl flex items-center justify-center mx-auto mb-3">
+                            <Package className="w-8 h-8 text-muted-foreground" />
                           </div>
-                          <p className="text-gray-600 font-medium">No products found</p>
-                          <p className="text-gray-500 text-sm mt-1">This user hasn't ordered anything yet</p>
+                          <p className="text-muted-foreground font-medium">No products found</p>
+                          <p className="text-muted-foreground text-sm mt-1">This user hasn't ordered anything yet</p>
                         </div>
                       )}
                     </div>
@@ -1134,10 +1122,10 @@ export default function EnhancedDeliveryDashboard() {
               </div>
             ) : (
               <div className="text-center py-12">
-                <div className="bg-gray-100 border border-gray-200 rounded-xl p-8">
-                  <Package className="w-12 h-12 text-gray-400 mx-auto mb-4" />
-                  <h3 className="text-xl font-semibold text-gray-900 mb-3">No orders found</h3>
-                  <p className="text-gray-600 mb-6 max-w-md mx-auto">{
+                <div className="bg-muted border border-border rounded-xl p-8">
+                  <Package className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
+                  <h3 className="text-xl font-semibold text-foreground mb-3">No orders found</h3>
+                  <p className="text-muted-foreground mb-6 max-w-md mx-auto">{
                     searchTerm || statusFilter !== "all"
                       ? "Try adjusting your search or filter criteria to find orders."
                       : "No orders have been placed yet. Orders will appear here once customers start placing them."
@@ -1145,7 +1133,7 @@ export default function EnhancedDeliveryDashboard() {
                   {(searchTerm || statusFilter !== "all") && (
                     <button
                       onClick={() => { setSearchTerm(""); setStatusFilter("all") }}
-                      className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium transition-colors duration-200"
+                      className="px-4 py-2 bg-primary hover:bg-primary/90 text-primary-foreground rounded-lg font-medium transition-colors duration-200"
                     >
                       Clear Filters
                     </button>
@@ -1160,18 +1148,18 @@ export default function EnhancedDeliveryDashboard() {
         return (
           <>
             <div className="mb-8 mt-4 flex items-center justify-center">
-              <h1 className="text-4xl font-bold text-gray-900 mb-2">Order Management</h1>
+              <h1 className="text-4xl font-bold text-foreground mb-2">Order Management</h1>
             </div>
 
             <div className="mb-6 flex flex-col sm:flex-row gap-4">
               <div className="flex-1 relative">
-                <Search className="absolute left-3 top-3 h-4 w-4 text-gray-500" />
+                <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
                 <input
                   type="text"
                   placeholder="Search by order ID, customer name, or phone..."
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
-                  className="w-full pl-10 pr-4 py-3 bg-gray-50 border border-gray-300 rounded-xl text-gray-900 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="w-full pl-10 pr-4 py-3 bg-muted border border-border rounded-xl text-foreground placeholder-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/20"
                 />
               </div>
               <div className="flex gap-3">
@@ -1179,58 +1167,57 @@ export default function EnhancedDeliveryDashboard() {
                   value={statusFilter}
                   title="Filter by order status"
                   onChange={(e) => setStatusFilter(e.target.value)}
-                  className="px-4 py-3 bg-gray-50 border border-gray-300 rounded-xl text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500 min-w-[140px]"
+                  className="px-4 py-3 bg-muted border border-border rounded-xl text-foreground focus:outline-none focus:ring-2 focus:ring-primary/20 min-w-[140px]"
                 >
                   <option value="all">All Orders ({getAllOrders.length})</option>
                   <option value="pending">Pending ({getAllOrders.filter(o => o.status === "pending").length})</option>
                   <option value="picked_up">Picked Up ({getAllOrders.filter(o => o.status === "picked_up").length})</option>
                   <option value="in_transit">In Transit ({getAllOrders.filter(o => o.status === "in_transit").length})</option>
                   <option value="shipped">Shipped ({getAllOrders.filter(o => o.status === "shipped").length})</option>
-                  <option value="delivered">Delivered ({getAllOrders.filter(o => o.status === "delivered").length})</option>
-                  <option value="cancelled">Cancelled ({getAllOrders.filter(o => o.status === "cancelled").length})</option>
+                 
                 </select>
               </div>
             </div>
 
-            <div className="bg-gray-50 border border-gray-200 rounded-2xl shadow-sm overflow-hidden">
-              <div className="p-6 border-b border-gray-200 bg-gray-50">
+            <div className="bg-muted border border-border rounded-2xl shadow-sm overflow-hidden">
+              <div className="p-6 border-b border-border bg-muted">
                 <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-                  <h2 className="text-xl font-semibold text-gray-900">All Orders ({filteredOrders.length})</h2>
+                  <h2 className="text-xl font-semibold text-foreground">All Orders ({filteredOrders.length})</h2>
                 </div>
               </div>
 
               <div className="overflow-x-auto">
                 <table className="w-full">
-                  <thead className="bg-gray-50 border-b border-gray-200">
+                  <thead className="bg-muted border-b border-border">
                     <tr>
-                      <th className="text-left p-4 text-gray-700 font-semibold text-sm uppercase tracking-wider">Order ID</th>
-                      <th className="text-left p-4 text-gray-700 font-semibold text-sm uppercase tracking-wider">Customer</th>
-                      <th className="text-left p-4 text-gray-700 font-semibold text-sm uppercase tracking-wider">Status</th>
-                      <th className="text-left p-4 text-gray-700 font-semibold text-sm uppercase tracking-wider">Amount</th>
-                      <th className="text-left p-4 text-gray-700 font-semibold text-sm uppercase tracking-wider">Payment Status</th>
-                      <th className="text-left p-4 text-gray-700 font-semibold text-sm uppercase tracking-wider">Cart Count</th>
-                      <th className="text-left p-4 text-gray-700 font-semibold text-sm uppercase tracking-wider">Action</th>
+                      <th className="text-left p-4 text-muted-foreground font-semibold text-sm uppercase tracking-wider">Order ID</th>
+                      <th className="text-left p-4 text-muted-foreground font-semibold text-sm uppercase tracking-wider">Customer</th>
+                      <th className="text-left p-4 text-muted-foreground font-semibold text-sm uppercase tracking-wider">Status</th>
+                      <th className="text-left p-4 text-muted-foreground font-semibold text-sm uppercase tracking-wider">Amount</th>
+                      <th className="text-left p-4 text-muted-foreground font-semibold text-sm uppercase tracking-wider">Payment Status</th>
+                      <th className="text-left p-4 text-muted-foreground font-semibold text-sm uppercase tracking-wider">Cart Count</th>
+                      <th className="text-left p-4 text-muted-foreground font-semibold text-sm uppercase tracking-wider">Action</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-200">
                     {filteredOrders.map((order) => (
-                      <tr key={order.id} className="hover:bg-gray-50 transition-colors duration-200 group">
+                      <tr key={order.id} className="hover:bg-muted transition-colors duration-200 group">
                         <td className="p-4">
                           <div className="flex items-center gap-2">
-                            <span className="font-mono text-sm text-gray-900 font-medium">{order.productName}</span>
-                            <button className="opacity-0 group-hover:opacity-100 transition-opacity p-1 hover:bg-gray-100 rounded" title="Copy order ID">
-                              <Copy className="w-3 h-3 text-gray-500" />
+                            <span className="font-mono text-sm text-foreground font-medium">{order.productName}</span>
+                            <button className="opacity-0 group-hover:opacity-100 transition-opacity p-1 hover:bg-muted rounded" title="Copy order ID">
+                              <Copy className="w-3 h-3 text-muted-foreground" />
                             </button>
                           </div>
                         </td>
                         <td className="p-4">
                           <div className="flex items-start gap-3">
-                            <div className="w-8 h-8 bg-gradient-to-br from-emerald-500 to-blue-500 rounded-full flex items-center justify-center text-white font-semibold text-sm">
+                            <div className="w-8 h-8 bg-gradient-to-br from-emerald-500 to-blue-500/5 rounded-full flex items-center justify-center text-white font-semibold text-sm">
                               {order.customer?.charAt(0).toUpperCase()}
                             </div>
                             <div>
-                              <p className="text-gray-900 text-sm font-medium">{order.customer}</p>
-                              <p className="text-gray-600 text-sm flex items-center gap-1">
+                              <p className="text-foreground text-sm font-medium">{order.customer}</p>
+                              <p className="text-muted-foreground text-sm flex items-center gap-1">
                                 <Phone className="w-3 h-3" />
                                 {order.phone}
                               </p>
@@ -1241,14 +1228,14 @@ export default function EnhancedDeliveryDashboard() {
                           <div className="flex items-center gap-2">
                             <span
                               className={`px-3 py-1.5 rounded-full text-xs font-medium border ${order.status === "pending"
-                                ? "bg-blue-100 text-blue-700 border-blue-300"
+                                ? "bg-primary/10 text-primary border-primary/30"
                                 : order.status === "picked_up"
-                                  ? "bg-blue-100 text-blue-700 border-blue-300"
+                                  ? "bg-primary/10 text-primary border-primary/30"
                                   : order.status === "in_transit"
-                                    ? "bg-blue-100 text-blue-700 border-blue-300"
+                                    ? "bg-primary/10 text-primary border-primary/30"
                                     : order.status === "delivered"
-                                      ? "bg-green-100 text-green-700 border-green-300"
-                                      : "bg-orange-100 text-orange-700 border-orange-300"
+                                      ? "bg-success/10 text-success border-success/30"
+                                      : "bg-warning/10 text-warning border-warning/30"
                                 }`}
                             >
                               {getStatusText(order.status)}
@@ -1256,67 +1243,71 @@ export default function EnhancedDeliveryDashboard() {
                           </div>
                         </td>
                         <td className="p-4">
-                          <span className="text-green-700 font-bold text-lg">₹{order.amount}</span>
+                          <span className="text-success font-bold text-lg">₹{order.amount}</span>
                         </td>
                         <td className="p-4">
                           <span
                             className={`px-3 py-1.5 rounded-full text-xs font-medium border ${order.paymentStatus?.toLowerCase() === "success"
-                              ? "bg-green-100 text-green-700 border-green-300"
+                              ? "bg-success/10 text-success border-success/30"
                               : order.paymentStatus?.toLowerCase() === "pending"
-                                ? "bg-yellow-100 text-yellow-700 border-yellow-300"
+                                ? "bg-warning/10 text-warning border-warning/30"
                                 : order.paymentStatus?.toLowerCase() === "failed"
-                                  ? "bg-red-100 text-red-700 border-red-300"
-                                  : "bg-gray-100 text-gray-700 border-gray-300"
+                                  ? "bg-destructive/10 text-destructive border-destructive/30"
+                                  : "bg-muted text-muted-foreground border-border"
                               }`}
                           >
                             {order.paymentStatus || "N/A"}
                           </span>
                         </td>
                         <td className="p-4">
-                          <span className="text-blue-700 font-medium text-sm">{order.cart_count}</span>
+                          <span className="text-primary font-medium text-sm">{order.cart_count}</span>
                         </td>
                         <td className="p-4">
                           <div className="flex items-center gap-2">
                             {order.status !== "delivered" && order.status !== "cancelled" ? (
-                              <div className="flex items-center gap-2">
-                                <select
-                                  value={order.status}
-                                  title={order.paymentStatus?.toLowerCase() === "pending"
-                                    ? "Cannot mark as delivered - Payment pending"
-                                    : "Change order status"}
-                                  onChange={(e) => handleStatusChange(order.id, e.target.value)}
-                                  disabled={updatingStatus === order.id}
-                                  className="bg-gray-50 border border-gray-300 rounded-lg px-3 py-1.5 text-gray-900 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all duration-200"
-                                >
-                                  <option value="pending">Pending</option>
-                                  <option value="picked_up">Picked Up</option>
-                                  <option value="in_transit">In Transit</option>
-                                  <option value="shipped">Shipped</option>
-                                  {/* <option 
-value="delivered" 
-disabled={order.paymentStatus?.toLowerCase() === "pending"}
->
-{order.paymentStatus?.toLowerCase() === "pending" 
-? "Delivered (Payment Pending)" 
-: "Delivered"}
-</option> */}
-                                </select>
-                                {/* {order.paymentStatus?.toLowerCase() === "pending" && (
-<div className="relative group/tooltip">
-<AlertCircle className="w-4 h-4 text-yellow-600" />
-<div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-3 py-2 bg-gray-900 text-white text-xs rounded-lg whitespace-nowrap opacity-0 group-hover/tooltip:opacity-100 transition-opacity pointer-events-none">
-Payment pending can not mark as delivered
-<div className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-gray-900"></div>
-</div>
-</div>
-)} */}
+                              <div className="flex flex-col gap-1">
+                                {!order.hasPaymentInfo && (
+                                  <div className="flex items-center gap-1.5 text-xs text-warning bg-warning/5 border border-warning/20 rounded-lg px-2 py-1">
+                                    <AlertCircle className="w-3 h-3 flex-shrink-0" />
+                                    <span>No payment record — status locked</span>
+                                  </div>
+                                )}
+                                {order.paymentStatus?.toLowerCase() === "pending" && order.hasPaymentInfo && (
+                                  <div className="flex items-center gap-1.5 text-xs text-warning bg-warning/5 border border-warning/20 rounded-lg px-2 py-1">
+                                    <AlertCircle className="w-3 h-3 flex-shrink-0" />
+                                    <span>Payment pending — cannot mark delivered</span>
+                                  </div>
+                                )}
+                                <div className="flex items-center gap-2">
+                                  <select
+                                    value={order.status}
+                                    title={!order.hasPaymentInfo
+                                      ? "Status locked — no payment record found"
+                                      : order.paymentStatus?.toLowerCase() === "pending"
+                                        ? "Cannot mark as delivered — payment pending"
+                                        : "Change order status"}
+                                    onChange={(e) => handleStatusChange(order.id, e.target.value)}
+                                    disabled={updatingStatus === order.id || !order.hasPaymentInfo}
+                                    className={`border rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 transition-all duration-200 ${
+                                      !order.hasPaymentInfo
+                                        ? "bg-muted border-border text-muted-foreground cursor-not-allowed"
+                                        : "bg-muted border-border text-foreground"
+                                    }`}
+                                  >
+                                    <option value="pending">Pending</option>
+                                    <option value="picked_up">Picked Up</option>
+                                    <option value="in_transit">In Transit</option>
+                                    <option value="shipped">Shipped</option>
+                                 
+                                  </select>
+                                </div>
                               </div>
                             ) : (
                               <div className="flex items-center gap-2">
                                 <span
                                   className={`px-3 py-1.5 rounded-full text-xs font-medium ${order.status === "delivered"
-                                    ? "bg-green-100 text-green-700 border border-green-300"
-                                    : "bg-orange-100 text-orange-700 border border-orange-300"
+                                    ? "bg-success/10 text-success border border-success/30"
+                                    : "bg-warning/10 text-warning border border-warning/30"
                                     }`}
                                 >
                                   {order.status === "delivered" ? "✓ Completed" : "✗ Cancelled"}
@@ -1324,7 +1315,7 @@ Payment pending can not mark as delivered
                               </div>
                             )}
 
-                            {updatingStatus === order.id && <Timer className="w-4 h-4 animate-spin text-blue-600" />}
+                            {updatingStatus === order.id && <Timer className="w-4 h-4 animate-spin text-primary" />}
                           </div>
                         </td>
                       </tr>
@@ -1336,11 +1327,11 @@ Payment pending can not mark as delivered
               {/* Enhanced Empty State */}
               {filteredOrders.length === 0 && (
                 <div className="p-16 text-center">
-                  <div className="w-24 h-24 mx-auto mb-6 bg-gray-100 rounded-full flex items-center justify-center">
-                    <Package className="w-12 h-12 text-gray-400" />
+                  <div className="w-24 h-24 mx-auto mb-6 bg-muted rounded-full flex items-center justify-center">
+                    <Package className="w-12 h-12 text-muted-foreground" />
                   </div>
-                  <h3 className="text-xl font-semibold text-gray-900 mb-3">No orders found</h3>
-                  <p className="text-gray-600 mb-6 max-w-md mx-auto">{
+                  <h3 className="text-xl font-semibold text-foreground mb-3">No orders found</h3>
+                  <p className="text-muted-foreground mb-6 max-w-md mx-auto">{
                     searchTerm || statusFilter !== "all"
                       ? "Try adjusting your search or filter criteria to find orders."
                       : "No orders have been placed yet. Orders will appear here once customers start placing them."
@@ -1348,7 +1339,7 @@ Payment pending can not mark as delivered
                   {(searchTerm || statusFilter !== "all") && (
                     <button
                       onClick={() => { setSearchTerm(""); setStatusFilter("all") }}
-                      className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium transition-colors duration-200"
+                      className="px-4 py-2 bg-primary hover:bg-primary/90 text-primary-foreground rounded-lg font-medium transition-colors duration-200"
                     >
                       Clear Filters
                     </button>
@@ -1363,9 +1354,9 @@ Payment pending can not mark as delivered
         return (
           <div className="flex items-center justify-center h-96">
             <div className="text-center">
-              <Package className="w-16 h-16 text-gray-400 mx-auto mb-4" />
-              <h3 className="text-xl font-semibold text-gray-900 mb-2">Coming Soon</h3>
-              <p className="text-gray-600">This section is under development</p>
+              <Package className="w-16 h-16 text-muted-foreground mx-auto mb-4" />
+              <h3 className="text-xl font-semibold text-foreground mb-2">Coming Soon</h3>
+              <p className="text-muted-foreground">This section is under development</p>
             </div>
           </div>
         )
@@ -1373,12 +1364,15 @@ Payment pending can not mark as delivered
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 text-gray-900 flex">
+    <div className="min-h-screen bg-muted text-foreground flex">
       {renderLeftPanel()}
-      <main className="flex-1 ml-80 p-8 overflow-y-auto mt-16">
+      <main className="flex-1 md:ml-80 ml-0 p-4 sm:p-8 overflow-y-auto mt-16">
         {renderMainContent()}
         {OtpModal()}
       </main>
     </div>
   )
 }
+
+
+

@@ -17,7 +17,6 @@ const nextConfig: NextConfig = {
   },
   // Enable compression
   compress: true,
-  // Enable React strict mode for better error detection
   reactStrictMode: true,
 };
 

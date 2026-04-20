@@ -3,7 +3,7 @@ import { Inter, Roboto_Mono } from "next/font/google";
 import "./globals.css";
 import { Toaster } from "sonner";
 import ClientWrapper from "./components/ClientWrapper";
-import Navbar from "./components/navbar";
+import ConditionalNavbar from "./components/ConditionalNavbar";
 
 const inter = Inter({
   variable: "--font-inter",
@@ -28,11 +28,11 @@ export default function RootLayout({
   return (
     <html lang="en" suppressHydrationWarning>
       <body
-        className={`${inter.variable} ${robotoMono.variable} antialiased bg-gradient-to-br from-slate-900 via-black to-slate-900`}
+        className={`${inter.variable} ${robotoMono.variable} antialiased`}
         suppressHydrationWarning
       >
         <ClientWrapper>
-          <Navbar />
+         <ConditionalNavbar />
           <main className="min-h-screen">
             <Toaster position="top-center" richColors />
             {children}

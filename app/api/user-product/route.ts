@@ -41,18 +41,18 @@ export async function POST(request: Request) {
       where: {
         userId: session.user.id,
         user_product_item_id: user_product_item_id,
-        cartItem: false,
-        isorderConfirmbyUser: true,
       },
     });
     
 
     if (existingUserProduct) {
-      // Update quantity for existing confirmed order
+      // Update quantity for existing product
       const updatedProduct = await prisma.userProduct.update({
         where: { id: existingUserProduct.id },
         data: {
           user_product_cart_count: (existingUserProduct.user_product_cart_count || 1) + 1,
+          isorderConfirmbyUser: true,
+          cartItem: false,
         },
       });
       
@@ -69,6 +69,8 @@ export async function POST(request: Request) {
       );
     }
     
+   
+
 
     const userProduct = await prisma.userProduct.create({
       data: {
@@ -86,10 +88,17 @@ export async function POST(request: Request) {
       },
     });
 
+    setTimeout(() => {
+      console.log("Created user product:", userProduct);  
+    }, 15000);
+
+ // ✅ Check shipping address BEFORE creating product
     const shipping = await prisma.shippingAddress.findFirst({
       where: { userId: session.user.id },
-      orderBy: { createdAt: "desc" },
+      // orderBy: { createdAt: "desc" },
     });
+
+    console.log("Shipping address check:", shipping)
 
     if (!shipping) {
       return NextResponse.json(
@@ -97,7 +106,7 @@ export async function POST(request: Request) {
         { status: 400 }
       );
     }
-
+  
     
     const orderId = `ORD-${Math.random().toString(36).slice(2, 8).toUpperCase()}`;
     const orderDate = new Date().toLocaleDateString("en-US", {
