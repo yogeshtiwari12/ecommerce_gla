@@ -1,6 +1,6 @@
+import { withAuth } from "next-auth/middleware";
 import { NextResponse } from "next/server";
-import type { NextRequest } from "next/server";
-import { getToken } from "next-auth/jwt";
+import type { NextRequestWithAuth } from "next-auth/middleware";
 import {
   getDefaultRouteForRole,
   getRequiredRolesForPath,
@@ -17,63 +17,53 @@ function getSignInRouteForPath(pathname: string): string {
   ) {
     return "/employee_login";
   }
-
   return "/sign-in";
 }
 
-export async function proxy(request: NextRequest) {
-  const { pathname } = request.nextUrl;
-  const token = await getToken({
-    req: request,
-    secret: process.env.NEXTAUTH_SECRET,
-  });
+export default withAuth(
+  function middleware(request: NextRequestWithAuth) {
+    const { pathname } = request.nextUrl;
+    const token = request.nextauth.token;
+    const role = token?.role as string | undefined;
 
-  const role = token?.role;
-  const isAuthenticated = Boolean(token);
-
-  if (AUTH_PAGES.includes(pathname) && isAuthenticated) {
-    return NextResponse.redirect(
-      new URL(getDefaultRouteForRole(role), request.url)
-    );
-  }
-
-  if (pathname === "/admin_dashboard") {
-    if (!isAuthenticated) {
-      return NextResponse.redirect(new URL("/employee_login", request.url));
+    // Redirect authenticated users away from auth pages
+    if (AUTH_PAGES.includes(pathname) && token) {
+      const homeRoute = getDefaultRouteForRole(role);
+      return NextResponse.redirect(new URL(homeRoute, request.url));
     }
 
-    if (!isAppRole(role)) {
-      return NextResponse.redirect(new URL("/sign-in", request.url));
+    // Check role-based access
+    const requiredRoles = getRequiredRolesForPath(pathname);
+    if (requiredRoles && token && !requiredRoles.includes(role as any)) {
+      return NextResponse.redirect(
+        new URL(getDefaultRouteForRole(role), request.url)
+      );
     }
 
-    return NextResponse.redirect(
-      new URL(getDefaultRouteForRole(role), request.url)
-    );
-  }
-
-  const requiredRoles = getRequiredRolesForPath(pathname);
-
-  if (!requiredRoles) {
     return NextResponse.next();
-  }
+  },
+  {
+    callbacks: {
+      authorized: ({ token, req }) => {
+        const pathname = req.nextUrl.pathname;
+        
+        // Public pages don't need authentication
+        const publicPages = ["/", "/about", "/contact", "/register", "/buy"];
+        if (publicPages.includes(pathname)) {
+          return true;
+        }
 
-  if (!isAuthenticated) {
-    const signInRoute = getSignInRouteForPath(pathname);
-    return NextResponse.redirect(new URL(signInRoute, request.url));
-  }
+        // Auth pages are accessible to everyone (will be redirected if already logged in)
+        if (AUTH_PAGES.includes(pathname)) {
+          return true;
+        }
 
-  if (!isAppRole(role)) {
-    return NextResponse.redirect(new URL("/sign-in", request.url));
+        // Protected pages require token
+        return !!token;
+      },
+    },
   }
-
-  if (!requiredRoles.includes(role)) {
-    return NextResponse.redirect(
-      new URL(getDefaultRouteForRole(role), request.url)
-    );
-  }
-
-  return NextResponse.next();
-}
+);
 
 export const config = {
   matcher: [

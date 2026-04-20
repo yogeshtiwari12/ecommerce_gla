@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -18,6 +19,7 @@ import { toast } from "sonner";
 import { getDefaultRouteForRole } from "@/lib/role-routes";
 
 const SignInPage = () => {
+  const router = useRouter();
   const [formData, setFormData] = useState({ email: "codekro8@gmail.com", password: "12345678" });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -51,14 +53,21 @@ const SignInPage = () => {
         setFormData({ email: "", password: "" });
         
         // Wait for session to be updated on server before redirecting
-        await new Promise(resolve => setTimeout(resolve, 500));
+        // Try multiple times to get the session
+        let session = null;
+        for (let i = 0; i < 5; i++) {
+          await new Promise(resolve => setTimeout(resolve, 200));
+          session = await getSession();
+          if (session?.user?.role) break;
+        }
         
-        const session = await getSession();
         const redirectUrl = session?.user?.role 
           ? getDefaultRouteForRole(session.user.role)
           : "/profile";
         
-        window.location.href = redirectUrl;
+        // Use router.push instead of window.location.href for better SPA experience
+        router.push(redirectUrl);
+        return;
       } else {
         const errorMessage = res?.error || "Sign in failed. Please check your credentials.";
         setError(errorMessage);

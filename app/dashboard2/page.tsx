@@ -1,6 +1,5 @@
 "use client";
 import { useState, useEffect } from "react";
-import { useRouter } from "next/navigation";
 import { useDispatch, useSelector } from "react-redux";
 import { useSession } from "next-auth/react";
 import type { AppDispatch } from "@/app/redux/store";
@@ -256,25 +255,10 @@ export default function Dashboard2Page() {
   const [activeTab, setActiveTab] = useState("overview");
   const dispatch = useDispatch<AppDispatch>();
   const { data: session, status } = useSession();
-  const router = useRouter();
   
-  // Protect route - redirect if not authenticated or not admin
-  useEffect(() => {
-    if (status === "unauthenticated") {
-      router.push("/sign-in");
-    } else if (status === "authenticated" && session?.user?.role !== "admin") {
-      router.push("/profile");
-    }
-  }, [status, session?.user?.role, router]);
-
-  // Show loading state while checking auth
+  // Show loading state while checking auth (proxy handles redirects)
   if (status === "loading") {
     return <div className="flex items-center justify-center min-h-screen">Loading...</div>;
-  }
-
-  // Don't render if not authenticated or not admin
-  if (!session?.user || session.user.role !== "admin") {
-    return null;
   }
   
   // Redux selectors

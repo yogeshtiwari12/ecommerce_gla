@@ -65,45 +65,21 @@ export const authOptions: NextAuthOptions = {
     }),
   ],
   callbacks: {
-    async jwt({ token, user, trigger }) {
-      const now = Math.floor(Date.now() / 1000);
-
+    async jwt({ token, user }) {
       if (user) {
         token.id = user.id;
         token.name = user.name;
         token.email = user.email;
         token.role = (user as any).role;
-        token.iat = now;
-        token.exp = now + (24 * 60 * 60); 
-        token.lastActivity = now; 
       }
-
-
-      if (trigger === "update" || !token.lastActivity) {
-        token.lastActivity = now;
-      }
-
-
-      if (token.exp && typeof token.exp === 'number' && now >= token.exp) {
-        throw new Error("Token expired");
-      }
-
       return token;
     },
     async session({ session, token }) {
-      const now = Math.floor(Date.now() / 1000);
-
-
-      if (token.exp && typeof token.exp === 'number' && now >= token.exp) {
-        throw new Error("Session expired");
-      }
-
       if (session.user && token) {
         session.user.id = token.id as string;
         session.user.name = token.name as string;
         session.user.email = token.email as string;
         session.user.role = token.role as string;
-
       }
       return session;
     },

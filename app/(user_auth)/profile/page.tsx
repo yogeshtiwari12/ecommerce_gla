@@ -2,7 +2,6 @@
 import React, { useState, useEffect, useMemo, useCallback } from "react";
 import Image from "next/image";
 import { useSession } from "next-auth/react";
-import { useRouter } from "next/navigation";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -36,38 +35,15 @@ import { toast } from "sonner";
 
 
 const ProfilePage = () => {
+  // All state hooks
   const { data: session, status } = useSession();
-  const router = useRouter();
   const [profileData, setProfileData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState("profile");
   const [removingItems, setRemovingItems] = useState<Set<string>>(new Set());
-  const dispatch = useDispatch<AppDispatch>();
-  const addressesById = useSelector((state: any) => state.product.addressesById);
-
-  // Protect route - redirect if not authenticated
-  useEffect(() => {
-    if (status === "unauthenticated") {
-      router.push("/sign-in");
-    }
-  }, [status, router]);
-
-  // Show loading state while checking auth
-  if (status === "loading") {
-    return <div className="flex items-center justify-center min-h-screen">Loading...</div>;
-  }
-
-  // Don't render if not authenticated
-  if (!session?.user) {
-    return null;
-  }
-
-  console.log("Current addresses in Redux store:",profileData?.productid);  
-
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [sortBy, setSortBy] = useState("newest");
-
   const [editingAddressOrderId, setEditingAddressOrderId] = useState<string | null>(null);
   const [addressInput, setAddressInput] = useState<Record<string, {
     streetAddress: string;
@@ -76,8 +52,106 @@ const ProfilePage = () => {
     pinCode: string;
     phoneNumber: string;
   }>>({});
+  const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
 
-  const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false); // added
+  // Redux hooks
+  const dispatch = useDispatch<AppDispatch>();
+  const addressesById = useSelector((state: any) => state.product.addressesById);
+
+  // Memoized data calculations
+  const { confirmedOrders, totalItems, totalRevenue } = useMemo(() => {
+    if (!profileData?.user_shop_data) {
+      return {
+        confirmedOrders: [],
+        totalItems: 0,
+        totalRevenue: 0,
+      };
+    }
+    const orders = profileData.user_shop_data.filter(
+      (item: any) => item?.isorderConfirmbyUser === true
+    ) || [];
+    const items = orders.reduce(
+      (acc: number, item: any) => acc + (item.user_cart_count || 0),
+      0
+    );
+    const revenue = orders.reduce(
+      (acc: number, item: any) =>
+        acc + (item.user_product_price || 0) * (item.user_cart_count || 0),
+      0
+    );
+    return {
+      confirmedOrders: orders,
+      totalItems: items,
+      totalRevenue: revenue,
+    };
+  }, [profileData]);
+
+  const filteredOrders = useMemo(() => {
+    let filtered = confirmedOrders.filter((order: any) => {
+      const matchesSearch =
+        order.product_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        order.user_product_category
+          ?.toLowerCase()
+          .includes(searchTerm.toLowerCase());
+
+      let matchesStatus = true;
+      const normalizedStatus = (order.product_delivery_status || "").toLowerCase();
+      
+      if (statusFilter === "pending") {
+        matchesStatus = normalizedStatus === "pending";
+      } else if (statusFilter === "shipped") {
+        matchesStatus = normalizedStatus === "shipped";
+      } else if (statusFilter === "delivered") {
+        matchesStatus = normalizedStatus === "delivered";
+      } else if (statusFilter === "cancelled") {
+        matchesStatus = normalizedStatus === "cancelled" || normalizedStatus === "canceled";
+      } else if (statusFilter === "picked_up") {
+        matchesStatus = normalizedStatus === "picked_up" || normalizedStatus === "picked up";
+      } else if (statusFilter === "in_transit") {
+        matchesStatus = normalizedStatus === "in_transit" || normalizedStatus === "in transit";
+      }
+
+      return matchesSearch && matchesStatus;
+    });
+
+    return filtered;
+  }, [confirmedOrders, searchTerm, statusFilter, sortBy]);
+
+  // Fetch profile function
+  const fetchProfile = useCallback(async () => {
+    try {
+      const response = await axios.get("/api/profile", {
+        withCredentials: true,
+      });
+
+      if (response.status !== 200) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      if (response.data.success) {
+        setProfileData(response.data);
+        setLoading(false);
+      } else {
+        console.error("API returned error:", response.data.message);
+        setLoading(false);
+      }
+    } catch (error) {
+      console.error("Error fetching profile:", error);
+      setLoading(false);
+    }
+  }, []);
+
+  // All effects after state and memoization
+  useEffect(() => {
+    fetchProfile();
+  }, [fetchProfile]);
+
+  // Show loading state while checking auth (proxy handles redirects)
+  if (status === "loading") {
+    return <div className="flex items-center justify-center min-h-screen">Loading...</div>;
+  }
+
+  console.log("Current addresses in Redux store:",profileData?.productid);
 
   const removecart = async (productId: string) => {
 
@@ -181,95 +255,6 @@ const ProfilePage = () => {
     }
   };
 
-  const { confirmedOrders, totalItems, totalRevenue } = useMemo(() => {
-    if (!profileData?.user_shop_data) {
-      return {
-        confirmedOrders: [],
-        totalItems: 0,
-        totalRevenue: 0,
-      };
-    }
-    const orders =
-    profileData.user_shop_data.filter(
-      (item: any) => item?.isorderConfirmbyUser === true
-    ) || [];
-    const items = orders.reduce(
-      (acc: number, item: any) => acc + (item.user_cart_count || 0),
-      0
-    );
-
-    const revenue = orders.reduce(
-      (acc: number, item: any) =>
-        acc + (item.user_product_price || 0) * (item.user_cart_count || 0),
-      0
-    );
-
-    return {
-      confirmedOrders: orders,
-      totalItems: items,
-      totalRevenue: revenue,
-    };
-  }, [profileData]);
-
-  const filteredOrders = useMemo(() => {
-    let filtered = confirmedOrders.filter((order: any) => {
-      const matchesSearch =
-        order.product_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        order.user_product_category
-          ?.toLowerCase()
-          .includes(searchTerm.toLowerCase());
-
-      let matchesStatus = true;
-      const normalizedStatus = (order.product_delivery_status || "").toLowerCase();
-      
-      if (statusFilter === "pending") {
-        matchesStatus = normalizedStatus === "pending";
-      } else if (statusFilter === "shipped") {
-        matchesStatus = normalizedStatus === "shipped";
-      } else if (statusFilter === "delivered") {
-        matchesStatus = normalizedStatus === "delivered";
-      } else if (statusFilter === "cancelled") {
-        matchesStatus = normalizedStatus === "cancelled" || normalizedStatus === "canceled";
-      } else if (statusFilter === "picked_up") {
-        matchesStatus = normalizedStatus === "picked_up" || normalizedStatus === "picked up";
-      } else if (statusFilter === "in_transit") {
-        matchesStatus = normalizedStatus === "in_transit" || normalizedStatus === "in transit";
-      }
-
-      return matchesSearch && matchesStatus;
-    });
-
-
-    return filtered;
-  }, [confirmedOrders, searchTerm, statusFilter, sortBy]);
-
-  const fetchProfile = async () => {
-    try {
-      const response = await axios.get("/api/profile", {
-        withCredentials: true,
-      });
-
-      if (response.status !== 200) {
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
-
-      if (response.data.success) {
-        setProfileData(response.data);
-        setLoading(false);
-      } else {
-        console.error("API returned error:", response.data.message);
-        setLoading(false);
-      }
-    } catch (error) {
-      console.error("Error fetching profile:", error);
-      setLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    fetchProfile();
-  }, []);
-
   const formatDate = (dateString: any) => {
     return new Date(dateString).toLocaleDateString("en-US", {
       year: "numeric",
@@ -277,8 +262,6 @@ const ProfilePage = () => {
       day: "numeric",
     });
   };
-
-
 
   // keep one handler (outer) to update an order's address
   const handleUpdateAddress = async (orderId: string, shippingId?: string) => {
