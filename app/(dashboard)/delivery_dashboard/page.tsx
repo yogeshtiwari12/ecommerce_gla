@@ -56,11 +56,6 @@ export default function EnhancedDeliveryDashboard() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
-  // Show loading state while checking auth (proxy handles redirects)
-  if (status === "loading") {
-    return <div className="flex items-center justify-center min-h-screen">Loading...</div>
-  }
-
   const deliveryAgent = useMemo(() => {
     if (!userswithproduuct || !Array.isArray(userswithproduuct)) {
       return {
@@ -75,7 +70,6 @@ export default function EnhancedDeliveryDashboard() {
         avgDeliveryTime: "0 mins",
       }
     }
-    // console.log(deliveryAgent)
 
     // Calculate stats based on productdeliverystatus only
     const allProducts = userswithproduuct.flatMap((user: any) => user.products || []);
@@ -216,7 +210,6 @@ export default function EnhancedDeliveryDashboard() {
     setUpdatingStatus(orderId);
     try {
       const order = getAllOrders.find((o) => o.id === orderId);
-      // console.log("Full order object for status update:", order.id); // Log the entire order object for debugging
       const productId = order?.productId || order?.product_id || orderId;
 
       let apiStatus = newStatus;
@@ -249,7 +242,6 @@ export default function EnhancedDeliveryDashboard() {
     setOtpVerifying(true);
     // Verify OTP
     const res = await dispatch(cancel_order_verify_otp(cancelOtp))
-    // console.log(res)
     if (res.payload.success) {
       if (res.payload.successmessage) {
         toast.success(res.payload.successmessage)
@@ -426,7 +418,6 @@ export default function EnhancedDeliveryDashboard() {
       }
     } catch (error) {
       toast.error("Error cancelling order")
-      console.error("Cancellation error:", error)
     } finally {
       setCancellingOrder(null)
       setShowOtpModal(false)
@@ -436,7 +427,7 @@ export default function EnhancedDeliveryDashboard() {
   }
 
   const renderLeftPanel = () => (
-    <div className="hidden md:block w-80 bg-gradient-to-b from-primary/10 to-card border-r-2 border-border fixed h-full top-16 overflow-y-auto shadow-xl">
+    <div className="hidden mt-12 md:block w-80 bg-gradient-to-b from-primary/10 to-card border-r-2 border-border fixed h-screen top-0 overflow-y-auto shadow-xl">
       <div className="p-6 h-full flex flex-col">
         {/* Agent Profile */}
         <div className="mb-8">
@@ -1151,175 +1142,133 @@ export default function EnhancedDeliveryDashboard() {
       case "table":
         return (
           <>
-            <div className="mb-8 mt-4 flex items-center justify-center">
-              <h1 className="text-4xl font-bold text-foreground mb-2">Order Management</h1>
+            <div className="mb-6">
+              <h1 className="text-3xl font-bold text-foreground">Order Management</h1>
+              <p className="text-muted-foreground text-sm mt-1">View and manage all customer orders</p>
             </div>
 
-            <div className="mb-6 flex flex-col sm:flex-row gap-4">
+            <div className="mb-6 flex flex-col sm:flex-row gap-3 items-stretch">
               <div className="flex-1 relative">
-                <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
                 <input
                   type="text"
-                  placeholder="Search by order ID, customer name, or phone..."
+                  placeholder="Search orders..."
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
-                  className="w-full pl-10 pr-4 py-3 bg-muted border border-border rounded-xl text-foreground placeholder-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/20"
+                  className="w-full pl-10 pr-4 py-2.5 bg-card border border-border rounded-lg text-foreground placeholder-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary transition-all"
                 />
               </div>
-              <div className="flex gap-3">
-                <select
-                  value={statusFilter}
-                  title="Filter by order status"
-                  onChange={(e) => setStatusFilter(e.target.value)}
-                  className="px-4 py-3 bg-muted border border-border rounded-xl text-foreground focus:outline-none focus:ring-2 focus:ring-primary/20 min-w-[140px]"
-                >
-                  <option value="all">All Orders ({getAllOrders.length})</option>
-                  <option value="pending">Pending ({getAllOrders.filter(o => o.status === "pending").length})</option>
-                  <option value="picked_up">Picked Up ({getAllOrders.filter(o => o.status === "picked_up").length})</option>
-                  <option value="in_transit">In Transit ({getAllOrders.filter(o => o.status === "in_transit").length})</option>
-                  <option value="shipped">Shipped ({getAllOrders.filter(o => o.status === "shipped").length})</option>
-                 
-                </select>
-              </div>
+              <select
+                value={statusFilter}
+                title="Filter by order status"
+                onChange={(e) => setStatusFilter(e.target.value)}
+                className="px-4 py-2.5 bg-card border border-border rounded-lg text-foreground focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary transition-all"
+              >
+                <option value="all">All Orders ({getAllOrders.length})</option>
+                <option value="pending">Pending ({getAllOrders.filter(o => o.status === "pending").length})</option>
+                <option value="picked_up">Picked Up ({getAllOrders.filter(o => o.status === "picked_up").length})</option>
+                <option value="in_transit">In Transit ({getAllOrders.filter(o => o.status === "in_transit").length})</option>
+                <option value="shipped">Shipped ({getAllOrders.filter(o => o.status === "shipped").length})</option>
+              </select>
             </div>
 
-            <div className="bg-muted border border-border rounded-2xl shadow-sm overflow-hidden">
-              <div className="p-6 border-b border-border bg-muted">
-                <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-                  <h2 className="text-xl font-semibold text-foreground">All Orders ({filteredOrders.length})</h2>
-                </div>
+            <div className="bg-card border border-border rounded-xl shadow-sm overflow-hidden">
+              <div className="px-6 py-4 border-b border-border/50 bg-card/50">
+                <h2 className="text-lg font-semibold text-foreground">All Orders ({filteredOrders.length})</h2>
               </div>
 
               <div className="overflow-x-auto">
                 <table className="w-full">
-                  <thead className="bg-muted border-b border-border">
+                  <thead className="bg-muted/60 border-b border-border">
                     <tr>
-                      <th className="text-left p-4 text-muted-foreground font-semibold text-sm uppercase tracking-wider">Order ID</th>
-                      <th className="text-left p-4 text-muted-foreground font-semibold text-sm uppercase tracking-wider">Customer</th>
-                      <th className="text-left p-4 text-muted-foreground font-semibold text-sm uppercase tracking-wider">Status</th>
-                      <th className="text-left p-4 text-muted-foreground font-semibold text-sm uppercase tracking-wider">Amount</th>
-                      <th className="text-left p-4 text-muted-foreground font-semibold text-sm uppercase tracking-wider">Payment Status</th>
-                      <th className="text-left p-4 text-muted-foreground font-semibold text-sm uppercase tracking-wider">Cart Count</th>
-                      <th className="text-left p-4 text-muted-foreground font-semibold text-sm uppercase tracking-wider">Action</th>
+                      <th className="text-left px-6 py-3 text-muted-foreground font-semibold text-xs uppercase tracking-wider">Product</th>
+                      <th className="text-left px-6 py-3 text-muted-foreground font-semibold text-xs uppercase tracking-wider">Customer</th>
+                      <th className="text-left px-6 py-3 text-muted-foreground font-semibold text-xs uppercase tracking-wider">Status</th>
+                      <th className="text-left px-6 py-3 text-muted-foreground font-semibold text-xs uppercase tracking-wider">Amount</th>
+                      <th className="text-left px-6 py-3 text-muted-foreground font-semibold text-xs uppercase tracking-wider">Payment</th>
+                      <th className="text-left px-6 py-3 text-muted-foreground font-semibold text-xs uppercase tracking-wider">Qty</th>
+                      <th className="text-left px-6 py-3 text-muted-foreground font-semibold text-xs uppercase tracking-wider">Actions</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-gray-200">
+                  <tbody className="divide-y divide-border">
                     {filteredOrders.map((order) => (
-                      <tr key={order.id} className="hover:bg-muted transition-colors duration-200 group">
-                        <td className="p-4">
-                          <div className="flex items-center gap-2">
-                            <span className="font-mono text-sm text-foreground font-medium">{order.productName}</span>
-                            <button className="opacity-0 group-hover:opacity-100 transition-opacity p-1 hover:bg-muted rounded" title="Copy order ID">
-                              <Copy className="w-3 h-3 text-muted-foreground" />
-                            </button>
-                          </div>
+                      <tr key={order.id} className="hover:bg-muted/40 transition-colors duration-150 group border-b border-border/40">
+                        <td className="px-6 py-4">
+                          <span className="text-sm font-medium text-foreground truncate">{order.productName}</span>
                         </td>
-                        <td className="p-4">
-                          <div className="flex items-start gap-3">
-                            <div className="w-8 h-8 bg-gradient-to-br from-emerald-500 to-blue-500/5 rounded-full flex items-center justify-center text-white font-semibold text-sm">
-                              {order.customer?.charAt(0).toUpperCase()}
+                        <td className="px-6 py-4">
+                          <div className="flex items-center gap-2">
+                            <div className="w-8 h-8 bg-primary/20 rounded-full flex items-center justify-center flex-shrink-0">
+                              <span className="text-xs font-bold text-primary">{order.customer?.charAt(0).toUpperCase()}</span>
                             </div>
-                            <div>
-                              <p className="text-foreground text-sm font-medium">{order.customer}</p>
-                              <p className="text-muted-foreground text-sm flex items-center gap-1">
-                                <Phone className="w-3 h-3" />
+                            <div className="min-w-0">
+                              <p className="text-sm font-medium text-foreground truncate">{order.customer}</p>
+                              <p className="text-xs text-muted-foreground flex items-center gap-1 truncate">
                                 {order.phone}
                               </p>
                             </div>
                           </div>
                         </td>
-                        <td className="p-4">
-                          <div className="flex items-center gap-2">
-                            <span
-                              className={`px-3 py-1.5 rounded-full text-xs font-medium border ${order.status === "pending"
-                                ? "bg-primary/10 text-primary border-primary/30"
-                                : order.status === "picked_up"
-                                  ? "bg-primary/10 text-primary border-primary/30"
-                                  : order.status === "in_transit"
-                                    ? "bg-primary/10 text-primary border-primary/30"
-                                    : order.status === "delivered"
-                                      ? "bg-success/10 text-success border-success/30"
-                                      : "bg-warning/10 text-warning border-warning/30"
-                                }`}
-                            >
-                              {getStatusText(order.status)}
-                            </span>
-                          </div>
-                        </td>
-                        <td className="p-4">
-                          <span className="text-success font-bold text-lg">₹{order.amount}</span>
-                        </td>
-                        <td className="p-4">
+                        <td className="px-6 py-4">
                           <span
-                            className={`px-3 py-1.5 rounded-full text-xs font-medium border ${order.paymentStatus?.toLowerCase() === "success"
-                              ? "bg-success/10 text-success border-success/30"
-                              : order.paymentStatus?.toLowerCase() === "pending"
-                                ? "bg-warning/10 text-warning border-warning/30"
-                                : order.paymentStatus?.toLowerCase() === "failed"
-                                  ? "bg-destructive/10 text-destructive border-destructive/30"
-                                  : "bg-muted text-muted-foreground border-border"
-                              }`}
+                            className={`inline-flex items-center px-2.5 py-1 rounded-lg text-xs font-semibold border ${
+                              order.status === "delivered"
+                                ? "bg-success/10 text-success border-success/20"
+                                : order.status === "cancelled"
+                                ? "bg-destructive/10 text-destructive border-destructive/20"
+                                : "bg-primary/10 text-primary border-primary/20"
+                            }`}
+                          >
+                            {getStatusText(order.status)}
+                          </span>
+                        </td>
+                        <td className="px-6 py-4">
+                          <span className="font-semibold text-foreground">₹{order.amount}</span>
+                        </td>
+                        <td className="px-6 py-4">
+                          <span
+                            className={`inline-flex items-center px-2.5 py-1 rounded-lg text-xs font-medium border ${
+                              order.paymentStatus?.toLowerCase() === "success"
+                                ? "bg-success/10 text-success border-success/20"
+                                : order.paymentStatus?.toLowerCase() === "pending"
+                                ? "bg-warning/10 text-warning border-warning/20"
+                                : "bg-muted text-muted-foreground border-border/30"
+                            }`}
                           >
                             {order.paymentStatus || "N/A"}
                           </span>
                         </td>
-                        <td className="p-4">
-                          <span className="text-primary font-medium text-sm">{order.cart_count}</span>
+                        <td className="px-6 py-4 text-center">
+                          <span className="text-sm font-semibold text-foreground">{order.cart_count}</span>
                         </td>
                         <td className="p-4">
-                          <div className="flex items-center gap-2">
+                          <div className="flex items-center gap-2 justify-center">
                             {order.status !== "delivered" && order.status !== "cancelled" ? (
-                              <div className="flex flex-col gap-1">
-                                {!order.hasPaymentInfo && (
-                                  <div className="flex items-center gap-1.5 text-xs text-warning bg-warning/5 border border-warning/20 rounded-lg px-2 py-1">
-                                    <AlertCircle className="w-3 h-3 flex-shrink-0" />
-                                    <span>No payment record — status locked</span>
-                                  </div>
-                                )}
-                                {order.paymentStatus?.toLowerCase() === "pending" && order.hasPaymentInfo && (
-                                  <div className="flex items-center gap-1.5 text-xs text-warning bg-warning/5 border border-warning/20 rounded-lg px-2 py-1">
-                                    <AlertCircle className="w-3 h-3 flex-shrink-0" />
-                                    <span>Payment pending — cannot mark delivered</span>
-                                  </div>
-                                )}
-                                <div className="flex items-center gap-2">
-                                  <select
-                                    value={order.status}
-                                    title={!order.hasPaymentInfo
-                                      ? "Status locked — no payment record found"
-                                      : order.paymentStatus?.toLowerCase() === "pending"
-                                        ? "Cannot mark as delivered — payment pending"
-                                        : "Change order status"}
-                                    onChange={(e) => handleStatusChange(order.id, e.target.value)}
-                                    disabled={updatingStatus === order.id || !order.hasPaymentInfo}
-                                    className={`border rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 transition-all duration-200 ${
-                                      !order.hasPaymentInfo
-                                        ? "bg-muted border-border text-muted-foreground cursor-not-allowed"
-                                        : "bg-muted border-border text-foreground"
-                                    }`}
-                                  >
-                                    <option value="pending">Pending</option>
-                                    <option value="picked_up">Picked Up</option>
-                                    <option value="in_transit">In Transit</option>
-                                    <option value="shipped">Shipped</option>
-                                 
-                                  </select>
-                                </div>
-                              </div>
+                              <select
+                                value={order.status}
+                                onChange={(e) => handleStatusChange(order.id, e.target.value)}
+                                disabled={updatingStatus === order.id || !order.hasPaymentInfo}
+                                className={`px-3 py-1.5 text-xs font-medium rounded-lg border focus:outline-none focus:ring-2 focus:ring-primary/30 transition-all ${
+                                  !order.hasPaymentInfo
+                                    ? "bg-muted/50 border-border text-muted-foreground cursor-not-allowed"
+                                    : "bg-primary/10 border-primary/30 text-foreground cursor-pointer hover:bg-primary/20"
+                                }`}
+                              >
+                                <option value="pending">Pending</option>
+                                <option value="picked_up">Picked Up</option>
+                                <option value="in_transit">In Transit</option>
+                                <option value="shipped">Shipped</option>
+                              </select>
                             ) : (
-                              <div className="flex items-center gap-2">
-                                <span
-                                  className={`px-3 py-1.5 rounded-full text-xs font-medium ${order.status === "delivered"
-                                    ? "bg-success/10 text-success border border-success/30"
-                                    : "bg-warning/10 text-warning border border-warning/30"
-                                    }`}
-                                >
-                                  {order.status === "delivered" ? "✓ Completed" : "✗ Cancelled"}
-                                </span>
-                              </div>
+                              <span className={`inline-flex items-center px-2.5 py-1 rounded-lg text-xs font-medium border ${
+                                order.status === "delivered"
+                                  ? "bg-success/10 text-success border-success/20"
+                                  : "bg-destructive/10 text-destructive border-destructive/20"
+                              }`}>
+                                {order.status === "delivered" ? "Completed" : "Cancelled"}
+                              </span>
                             )}
-
-                            {updatingStatus === order.id && <Timer className="w-4 h-4 animate-spin text-primary" />}
+                            {updatingStatus === order.id && <Timer className="w-4 h-4 animate-spin text-primary flex-shrink-0" />}
                           </div>
                         </td>
                       </tr>
@@ -1367,12 +1316,26 @@ export default function EnhancedDeliveryDashboard() {
     }
   }
 
+  // Show loading state while checking auth (proxy handles redirects)
+  if (status === "loading") {
+    return (
+      <div className="flex items-center justify-center min-h-screen bg-muted">
+        <div className="text-center">
+          <div className="w-12 h-12 border-4 border-primary border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+          <p className="text-foreground font-medium">Loading dashboard...</p>
+        </div>
+      </div>
+    )
+  }
+
   return (
     <div className="min-h-screen bg-muted text-foreground flex">
       {renderLeftPanel()}
-      <main className="flex-1 md:ml-80 ml-0 p-4 sm:p-8 overflow-y-auto mt-16">
-        {renderMainContent()}
-        {OtpModal()}
+      <main className="flex-1 md:ml-80 ml-0 overflow-y-auto h-screen scrollbar-hide pt-32 md:pt-8">
+        <div className="p-4 sm:p-8">
+          {renderMainContent()}
+          {OtpModal()}
+        </div>
       </main>
     </div>
   )

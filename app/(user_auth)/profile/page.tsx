@@ -138,14 +138,11 @@ const ProfilePage = () => {
         setProfileData(response.data);
         setLoading(false);
       } else {
-        console.error("API returned error:", response.data.message);
         setLoading(false);
       }
     } catch (error: any) {
       if (error.name === 'AbortError') {
-        console.error("Profile fetch timeout after 10 seconds");
       } else {
-        console.error("Error fetching profile:", error);
       }
       setLoading(false);
     }
@@ -161,7 +158,7 @@ const ProfilePage = () => {
     return <div className="flex items-center justify-center min-h-screen">Loading...</div>;
   }
 
-  console.log("Current addresses in Redux store:",profileData?.productid);
+  // console.log("Current addresses in Redux store:",profileData?.productid);
 
   const removecart = async (productId: string) => {
     setRemovingItems(prev => new Set(prev).add(productId));
@@ -381,7 +378,7 @@ const ProfilePage = () => {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
         <div className="flex flex-col items-center gap-4">
-          <div className="w-12 h-12 border-4 border-primary border-t-transparent rounded-full animate-spin"></div>
+          <div className="w-12  border-4 border-primary border-t-transparent rounded-full animate-spin"></div>
           <div className="text-primary text-xl font-medium">
             Loading your dashboard...
           </div>
@@ -706,7 +703,7 @@ const renderCarts = () => {
 
             {/* Order Summary - Right Column (1/3) */}
             <div className="lg:col-span-1">
-              <div className="sticky top-6 self-start">
+              <div className="sticky md:top-12  top-64 self-start">
                 <div className="bg-card border border-border rounded-lg overflow-hidden shadow-sm">
                   <div className="bg-primary/10 border-b border-primary/30 px-4 py-3">
                     <h2 className="text-lg font-bold text-foreground">Order Summary</h2>
@@ -825,7 +822,7 @@ const renderCarts = () => {
     } as const;
 
     return (
-      <div className="space-y-6">
+      <div className=" mt-8 mb-12">
         {confirmedOrders.length > 0 ? (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
             {confirmedOrders.map((product: any) => {
@@ -863,9 +860,9 @@ const renderCarts = () => {
               return (
                 <div
                   key={orderKey}
-                  className="bg-card border border-border rounded-2xl shadow-sm overflow-hidden hover:shadow-md hover:border-primary/50 transition-[transform,box-shadow,border-color] duration-300 hover:-translate-y-1"
+                  className="bg-card mt-6 border border-border rounded-2xl shadow-sm overflow-hidden hover:shadow-md hover:border-primary/50 transition-[transform,box-shadow,border-color] duration-300 hover:-translate-y-1"
                 >
-                  <div className="p-6">
+                  <div className="p-6 ">
                     <div className="flex items-start justify-between mb-4">
                       <div className="flex items-center gap-3">
                         <div className="w-10 h-10 border border-primary/30 rounded-md overflow-hidden flex items-center justify-center bg-primary/10 relative">
@@ -1239,9 +1236,9 @@ const renderCarts = () => {
   };
 
   return (
-    <div className="min-h-screen mt-16 bg-muted flex">
+    <div className="min-h-screen bg-muted flex">
       {/* Sidebar (desktop) */}
-      <div className="md:w-80 md:bg-card md:border-r md:border-border md:fixed md:h-full md:shadow-sm hidden md:block">
+      <div className="md:w-80 mt-16 md:bg-card md:border-r md:border-border md:fixed md:h-screen md:shadow-sm hidden md:block md:top-0 md:left-0 md:z-50">
         <div className="p-6 h-full flex flex-col overflow-y-auto scrollbar-hide">
           <div className="mb-8">
             <div className="flex items-center gap-4 mb-6">
@@ -1320,7 +1317,7 @@ const renderCarts = () => {
               <button
                 key={tab.id}
                 onClick={() => setActiveTab(tab.id)}
-                className={`px-4 py-2 rounded-full text-sm font-semibold border ${activeTab === tab.id
+                className={`px-4 py-2 rounded-full text-sm font-semibold border whitespace-nowrap ${activeTab === tab.id
                   ? "bg-primary text-primary-foreground border-primary"
                   : "bg-muted text-foreground border-border"
                 }`}
@@ -1400,9 +1397,9 @@ const renderCarts = () => {
         </div>
       )}
 
-      <div className="flex-1 md:ml-80 ml-0">
-        <div className="p-4 sm:p-8 overflow-y-auto h-[calc(100vh-4rem)] md:h-screen scrollbar-hide">
-          <div className="max-w-7xl mx-auto">{renderContent()}</div>
+      <div className="flex-1 md:ml-80 w-full">
+        <div className="w-full h-screen md:h-screen overflow-y-auto scrollbar-hide pt-32 md:pt-8">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">{renderContent()}</div>
         </div>
       </div>
     </div>
@@ -1410,6 +1407,7 @@ const renderCarts = () => {
 };
 
 export default ProfilePage;
+
 
 
 

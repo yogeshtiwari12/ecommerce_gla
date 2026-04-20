@@ -173,6 +173,8 @@ export default function CheckoutPage() {
   const {data:session} = useSession();    
 
   const handleRazorpayPayment = async (userId: string) => {
+    let paymentTimeout: NodeJS.Timeout | null = null;
+    
     try {
       if (!isRazorpayLoaded) {
         alert('Payment gateway is loading. Please try again in a moment.');
@@ -208,6 +210,12 @@ export default function CheckoutPage() {
       log[0].status = '✅';
       log.push({step: 'Opening Payment Gateway', time: step1EndTime, status: '✅'});
 
+      // Set payment timeout (10 minutes for QR scanning)
+      paymentTimeout = setTimeout(() => {
+        console.warn('⚠️ Payment process timeout - user took too long to complete payment');
+        setIsProcessing(false);
+      }, 600000); // 10 minutes
+
       const options = {
         key: orderData.keyId,
         amount: orderData.amount,
@@ -217,6 +225,16 @@ export default function CheckoutPage() {
           ? `Cart Checkout - ${cartItems.length} items` 
           : `Order Payment - ${product?.name || 'Product'}`,
         order_id: orderData.orderId,
+        timeout: 600,
+        upi: {
+          flow: 'qr'
+        },
+        method: {
+          upi: true,
+          netbanking: true,
+          card: true,
+          wallet: true
+        },
         
         handler: async function (response: any) {
           try {
@@ -342,7 +360,31 @@ export default function CheckoutPage() {
             console.error('Payment handler error:', error);
             alert(`❌ Error: ${error}`);
           } finally {
+            if (paymentTimeout) clearTimeout(paymentTimeout);
             setIsProcessing(false);
+          }
+        },
+        
+        modal: {
+          onclose: async function() {
+            console.warn('⚠️ User closed payment modal');
+            setIsProcessing(false);
+            
+            // Check if payment was actually completed
+            try {
+              const checkResponse = await fetch(`/api/payment-status?orderId=${orderData.orderId}`);
+              const checkData = await checkResponse.json();
+              
+              if (checkData.paymentCompleted) {
+                alert('✅ Payment was successful! Your order has been confirmed.');
+                window.location.href = '/profile';
+              } else {
+                alert('Payment was cancelled. Please try again.');
+              }
+            } catch (error) {
+              console.error('Error checking payment status:', error);
+              alert('Payment cancelled. If amount was deducted, please contact support.');
+            }
           }
         },
       
@@ -351,6 +393,11 @@ export default function CheckoutPage() {
           email: session?.user?.email || "",
           contact: formData.phone
         },
+        
+        notes: {
+          order_type: isCartCheckout ? 'cart' : 'single_product',
+          products: isCartCheckout ? cartItems.length : 1
+        }
       
       };
 
@@ -363,8 +410,19 @@ export default function CheckoutPage() {
         throw new Error('Razorpay SDK not loaded');
       }
     } catch (error) {
+      // clearTimeout(paymentTimeout);
       console.error('Razorpay payment error:', error);
-      alert(`❌ PAYMENT FAILED\n\n${error}`);
+      
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      
+      if (errorMessage.includes('timeout') || errorMessage.includes('Timeout')) {
+        alert('❌ PAYMENT TIMEOUT\n\nPlease check your internet connection and try again.\n\nIf amount was deducted, please contact support.');
+      } else if (errorMessage.includes('network') || errorMessage.includes('Network')) {
+        alert('❌ NETWORK ERROR\n\nPlease check your internet connection and try again.');
+      } else {
+        alert(`❌ PAYMENT FAILED\n\n${errorMessage}\n\nIf amount was deducted, please contact support.`);
+      }
+      
       setIsProcessing(false);
     }
   };
@@ -991,4 +1049,5 @@ export default function CheckoutPage() {
     </div>
   );
 }
+
 

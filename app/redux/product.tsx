@@ -27,7 +27,7 @@ export const cancel_order_otp_send = createAsyncThunk(
                 withCredentials: true,
             });
             if (response.status === 200) {
-                console.log(response.data);
+                // console.log(response.data);
                 return response.data;
             }
         } catch (error) {
@@ -95,7 +95,7 @@ export const verifyPayment = createAsyncThunk(
             const response = await axios.post('/api/verifypayment', paymentData, {
                 withCredentials: true,
             });
-            console.log("Payment verification response:", response);            
+            // console.log("Payment verification response:", response);            
             return response.data;
         } catch (error: any) {
             console.error("Error verifying payment:", error);
@@ -139,7 +139,7 @@ export const users_with_prod_details = createAsyncThunk(
             const response = await axios.get("api/users_with_prod_details", {
                 withCredentials: true,
             });
-            console.log("Response:", response);
+            // console.log("Response:", response);
             if (response.status === 200) {
                 return response.data;
             }
@@ -178,13 +178,13 @@ export const update_product_address = createAsyncThunk(
             if (response.status === 200) {
                 return response.data;
             } else {
-                console.log("Response data:", response.data);
+                // console.log("Response data:", response.data);
                 return rejectWithValue(response.data);
                 
             }
         } catch (error: any) {
             if (error.response && error.response.data) {
-                console.log("Error response datsda:", error.response.data);
+                // console.log("Error response datsda:", error.response.data);
                 return rejectWithValue(error.response.data.error);
             }
             console.error("Error updating address:", error);
@@ -233,7 +233,7 @@ export const decrease_cart_count = createAsyncThunk(
             const response = await axios.post(`api/decrease_cart_count/${id}`, {
                 withCredentials: true,
             });
-            console.log("Decrease cart count response:", response);
+            // console.log("Decrease cart count response:", response);
             if (response.status === 200) {
                 return response.data;
             }

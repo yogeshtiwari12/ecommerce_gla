@@ -28,7 +28,7 @@ const Navbar = () => {
     setIsLoggedIn(session?.user ? true : false);
   }, [session]);
 
-  console.log("Session Data:", session);
+  // console.log("Session Data:", session);
   
 
 const router = useRouter();
