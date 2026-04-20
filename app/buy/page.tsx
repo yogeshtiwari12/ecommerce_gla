@@ -462,11 +462,62 @@ export default function CheckoutPage() {
       console.log('🔴 ====== RAZORPAY MODAL OPENING ======');
       console.log('🔴 Order ID:', orderData.orderId);
 
+      // ── For UPI QR: modal doesn't auto-close, so we poll in parallel ──────────
+      let pollIntervalId: NodeJS.Timeout | null = null;
+      let paymentFound = false;
+
+      const startBackgroundPolling = async () => {
+        console.log('🔴 Starting background payment polling...');
+        pollIntervalId = setInterval(async () => {
+          if (paymentFound) return; // Already found
+
+          try {
+            const res = await fetch(`/api/payment-status?orderId=${orderData.orderId}`);
+            const data = await res.json();
+
+            if (data.paymentCompleted) {
+              console.log('🔴 ✅ Payment detected via background polling!');
+              paymentFound = true;
+              if (pollIntervalId) clearInterval(pollIntervalId);
+
+              // Close modal programmatically (if possible)
+              try {
+                rzp.close();
+              } catch (e) {
+                console.log('Could not close modal');
+              }
+            }
+          } catch (err) {
+            console.error('Background poll error:', err);
+          }
+        }, 3000); // Poll every 3 seconds while modal is open
+      };
+
+      // Start polling in background
+      startBackgroundPolling();
+
+      // Also set a timeout to force-close modal if payment found
+      const closeIfPaidTimeout = setTimeout(async () => {
+        if (paymentFound) {
+          console.log('🔴 Payment already confirmed, closing modal...');
+          try {
+            rzp.close();
+          } catch (e) {
+            // Modal might already be closed
+          }
+        }
+      }, 2000); // Check every 2 seconds
+
+      // Store the interval ID for cleanup
+      (rzp as any)._pollIntervalId = pollIntervalId;
+      (rzp as any)._closeTimeoutId = closeIfPaidTimeout;
+
       // Handle payment failures (card declined, UPI failure etc.)
       rzp.on('payment.failed', function (response: any) {
         console.error('🔴 ====== PAYMENT FAILED EVENT ======');
         console.error('Payment failed:', response.error);
         paymentHandledRef.current = true; // prevent onclose from polling
+        if (pollIntervalId) clearInterval(pollIntervalId);
         alert(`❌ Payment failed: ${response.error.description}`);
         setIsProcessing(false);
       });
