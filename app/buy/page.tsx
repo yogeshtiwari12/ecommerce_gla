@@ -210,12 +210,6 @@ export default function CheckoutPage() {
       log[0].status = '✅';
       log.push({step: 'Opening Payment Gateway', time: step1EndTime, status: '✅'});
 
-      // Set payment timeout (10 minutes for QR scanning)
-      paymentTimeout = setTimeout(() => {
-        console.warn('⚠️ Payment process timeout - user took too long to complete payment');
-        setIsProcessing(false);
-      }, 600000); // 10 minutes
-
       const options = {
         key: orderData.keyId,
         amount: orderData.amount,
@@ -243,40 +237,15 @@ export default function CheckoutPage() {
             log.push({step: 'Payment Completed by User', time: step2Time, status: '✅'});
             log.push({step: 'Verifying Payment Signature', time: step2Time, status: '⏳'});
 
-            // Retry logic for verify payment (in case of network delay)
-            let verifyAction;
-            let retries = 0;
-            const maxRetries = 3;
-
-            while (retries < maxRetries) {
-              try {
-                // Step 3: Verify signature first
-                verifyAction = await dispatch(verifyPayment({
-                  razorpay_order_id: response.razorpay_order_id,
-                  razorpay_payment_id: response.razorpay_payment_id,
-                  razorpay_signature: response.razorpay_signature
-                }));
-
-                if (verifyPayment.fulfilled.match(verifyAction)) {
-                  break; // Success, exit retry loop
-                } else {
-                  retries++;
-                  if (retries < maxRetries) {
-                    await new Promise(resolve => setTimeout(resolve, 2000)); // Wait 2s before retry
-                  }
-                }
-              } catch (error) {
-                retries++;
-                if (retries < maxRetries) {
-                  await new Promise(resolve => setTimeout(resolve, 2000));
-                } else {
-                  throw error;
-                }
-              }
-            }
+            // Step 3: Verify signature
+            const verifyAction = await dispatch(verifyPayment({
+              razorpay_order_id: response.razorpay_order_id,
+              razorpay_payment_id: response.razorpay_payment_id,
+              razorpay_signature: response.razorpay_signature
+            }));
 
             if (!verifyPayment.fulfilled.match(verifyAction)) {
-              throw new Error('Payment signature verification failed after retries');
+              throw new Error('Payment signature verification failed');
             }
 
             log[log.length - 1].status = '✅';
@@ -391,44 +360,10 @@ export default function CheckoutPage() {
         },
         
         modal: {
-          onclose: async function() {
-            console.warn('⚠️ User closed payment modal');
+          onclose: function() {
+            console.log('Payment modal closed');
+            if (paymentTimeout) clearTimeout(paymentTimeout);
             setIsProcessing(false);
-            
-            // Poll for payment status (webhook might be delayed)
-            let paymentCompleted = false;
-            let pollAttempts = 0;
-            const maxPolls = 6; // Poll for up to 30 seconds
-            
-            while (pollAttempts < maxPolls && !paymentCompleted) {
-              try {
-                const checkResponse = await fetch(`/api/payment-status?orderId=${orderData.orderId}`);
-                const checkData = await checkResponse.json();
-                
-                if (checkData.paymentCompleted) {
-                  paymentCompleted = true;
-                  alert('✅ Payment was successful! Your order has been confirmed.');
-                  window.location.href = '/profile';
-                  break;
-                }
-                
-                pollAttempts++;
-                if (pollAttempts < maxPolls) {
-                  await new Promise(resolve => setTimeout(resolve, 5000)); // Wait 5s before next poll
-                }
-              } catch (error) {
-                console.error('Error checking payment status:', error);
-                pollAttempts++;
-                
-                if (pollAttempts < maxPolls) {
-                  await new Promise(resolve => setTimeout(resolve, 5000));
-                }
-              }
-            }
-            
-            if (!paymentCompleted) {
-              alert('Payment status unclear. If amount was deducted, please check your profile or contact support.\n\nReferencing order: ' + orderData.orderId);
-            }
           }
         },
       
@@ -454,19 +389,11 @@ export default function CheckoutPage() {
         throw new Error('Razorpay SDK not loaded');
       }
     } catch (error) {
-      // clearTimeout(paymentTimeout);
+      if (paymentTimeout) clearTimeout(paymentTimeout);
       console.error('Razorpay payment error:', error);
       
       const errorMessage = error instanceof Error ? error.message : String(error);
-      
-      if (errorMessage.includes('timeout') || errorMessage.includes('Timeout')) {
-        alert('❌ PAYMENT TIMEOUT\n\nPlease check your internet connection and try again.\n\nIf amount was deducted, please contact support.');
-      } else if (errorMessage.includes('network') || errorMessage.includes('Network')) {
-        alert('❌ NETWORK ERROR\n\nPlease check your internet connection and try again.');
-      } else {
-        alert(`❌ PAYMENT FAILED\n\n${errorMessage}\n\nIf amount was deducted, please contact support.`);
-      }
-      
+      alert(`❌ Payment failed: ${errorMessage}\n\nIf amount was deducted, please contact support.`);
       setIsProcessing(false);
     }
   };
