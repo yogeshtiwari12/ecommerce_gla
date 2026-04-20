@@ -243,15 +243,40 @@ export default function CheckoutPage() {
             log.push({step: 'Payment Completed by User', time: step2Time, status: '✅'});
             log.push({step: 'Verifying Payment Signature', time: step2Time, status: '⏳'});
 
-            // Step 3: Verify signature first
-            const verifyAction = await dispatch(verifyPayment({
-              razorpay_order_id: response.razorpay_order_id,
-              razorpay_payment_id: response.razorpay_payment_id,
-              razorpay_signature: response.razorpay_signature
-            }));
+            // Retry logic for verify payment (in case of network delay)
+            let verifyAction;
+            let retries = 0;
+            const maxRetries = 3;
+
+            while (retries < maxRetries) {
+              try {
+                // Step 3: Verify signature first
+                verifyAction = await dispatch(verifyPayment({
+                  razorpay_order_id: response.razorpay_order_id,
+                  razorpay_payment_id: response.razorpay_payment_id,
+                  razorpay_signature: response.razorpay_signature
+                }));
+
+                if (verifyPayment.fulfilled.match(verifyAction)) {
+                  break; // Success, exit retry loop
+                } else {
+                  retries++;
+                  if (retries < maxRetries) {
+                    await new Promise(resolve => setTimeout(resolve, 2000)); // Wait 2s before retry
+                  }
+                }
+              } catch (error) {
+                retries++;
+                if (retries < maxRetries) {
+                  await new Promise(resolve => setTimeout(resolve, 2000));
+                } else {
+                  throw error;
+                }
+              }
+            }
 
             if (!verifyPayment.fulfilled.match(verifyAction)) {
-              throw new Error('Payment signature verification failed');
+              throw new Error('Payment signature verification failed after retries');
             }
 
             log[log.length - 1].status = '✅';
@@ -370,20 +395,39 @@ export default function CheckoutPage() {
             console.warn('⚠️ User closed payment modal');
             setIsProcessing(false);
             
-            // Check if payment was actually completed
-            try {
-              const checkResponse = await fetch(`/api/payment-status?orderId=${orderData.orderId}`);
-              const checkData = await checkResponse.json();
-              
-              if (checkData.paymentCompleted) {
-                alert('✅ Payment was successful! Your order has been confirmed.');
-                window.location.href = '/profile';
-              } else {
-                alert('Payment was cancelled. Please try again.');
+            // Poll for payment status (webhook might be delayed)
+            let paymentCompleted = false;
+            let pollAttempts = 0;
+            const maxPolls = 6; // Poll for up to 30 seconds
+            
+            while (pollAttempts < maxPolls && !paymentCompleted) {
+              try {
+                const checkResponse = await fetch(`/api/payment-status?orderId=${orderData.orderId}`);
+                const checkData = await checkResponse.json();
+                
+                if (checkData.paymentCompleted) {
+                  paymentCompleted = true;
+                  alert('✅ Payment was successful! Your order has been confirmed.');
+                  window.location.href = '/profile';
+                  break;
+                }
+                
+                pollAttempts++;
+                if (pollAttempts < maxPolls) {
+                  await new Promise(resolve => setTimeout(resolve, 5000)); // Wait 5s before next poll
+                }
+              } catch (error) {
+                console.error('Error checking payment status:', error);
+                pollAttempts++;
+                
+                if (pollAttempts < maxPolls) {
+                  await new Promise(resolve => setTimeout(resolve, 5000));
+                }
               }
-            } catch (error) {
-              console.error('Error checking payment status:', error);
-              alert('Payment cancelled. If amount was deducted, please contact support.');
+            }
+            
+            if (!paymentCompleted) {
+              alert('Payment status unclear. If amount was deducted, please check your profile or contact support.\n\nReferencing order: ' + orderData.orderId);
             }
           }
         },
