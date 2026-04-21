@@ -256,10 +256,6 @@ export default function Dashboard2Page() {
   const dispatch = useDispatch<AppDispatch>();
   const { data: session, status } = useSession();
   
-  // Show loading state while checking auth (proxy handles redirects)
-  if (status === "loading") {
-    return <div className="flex items-center justify-center min-h-screen">Loading...</div>;
-  }
   
   // Redux selectors
   const { adminDashboardData, employeesList, adminProducts, adminLoading, adminError } = useSelector(
@@ -300,8 +296,13 @@ export default function Dashboard2Page() {
       dispatch(get_employees_list());
       dispatch(get_all_products_admin());
     }
-  }, [dispatch, session?.user]);
+  }, [dispatch, session?.user, status]);
 
+
+  // Show loading state while checking auth (proxy handles redirects)
+  if (status === "loading") {
+    return <div className="flex items-center justify-center min-h-screen">Loading...</div>;
+  }
   // Derived lists
   const departments = [...new Set(employeeData.map((e) => e.department))];
 
@@ -1734,3 +1735,4 @@ export default function Dashboard2Page() {
     </AdminLayout>
   );
 }
+

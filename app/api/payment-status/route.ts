@@ -62,35 +62,60 @@ export async function GET(request: NextRequest) {
     }
 
     // ── 2. Not in DB yet — ask Razorpay directly ────────────────────────────────
-    // This is the correct way to handle async UPI / QR payments where
-    // the webhook/handler may not have fired yet.
+    // This handles async UPI / QR where order.status may remain 'attempted'
+    // briefly even though a payment has already been captured.
     try {
       console.log('📡 Fetching order status from Razorpay for:', orderId);
       const razorpayOrder = await razorpay.orders.fetch(orderId);
 
       console.log('📋 Razorpay order status:', razorpayOrder.status);
 
+      const payments = await razorpay.orders.fetchPayments(orderId);
+      const successfulPayment = (payments.items as any[]).find(
+        (p: any) => p.status === 'captured' || p.status === 'authorized'
+      );
+
+      if (successfulPayment) {
+        const normalizedStatus = successfulPayment.status === 'authorized' ? 'authorized' : 'success';
+
+        // Update existing records only; savepayment creates records.
+        await prisma.paymentDetails.updateMany({
+          where: { orderId: orderId },
+          data: {
+            paymentStatus: normalizedStatus,
+            transactionId: successfulPayment.id,
+          },
+        });
+
+        console.log('✅ Payment confirmed via Razorpay payments API:', successfulPayment.status);
+        return NextResponse.json({
+          success: true,
+          paymentCompleted: true,
+          source: 'razorpay-payments',
+          payment: {
+            id: successfulPayment.id,
+            orderId: orderId,
+            status: successfulPayment.status,
+          },
+        });
+      }
+
       if (razorpayOrder.status === 'paid') {
         let confirmedPaymentId: string | undefined;
 
-        // Payment confirmed by Razorpay. The webhook may still be in-flight,
-        // so we update the record here if it exists.
+        // Payment confirmed by Razorpay order state. Fetch captured payment ID.
         try {
-          // Fetch the associated payments to get the payment ID
-          const payments = await razorpay.orders.fetchPayments(orderId);
-          const successfulPayment = (payments.items as any[]).find(
-            (p: any) => p.status === 'captured'
-          );
+          const capturedPayment = (payments.items as any[]).find((p: any) => p.status === 'captured');
 
-          if (successfulPayment) {
-            confirmedPaymentId = successfulPayment.id;
+          if (capturedPayment) {
+            confirmedPaymentId = capturedPayment.id;
 
             // Only update existing records, don't create
             await prisma.paymentDetails.updateMany({
               where: { orderId: orderId },
               data: {
                 paymentStatus: 'success',
-                transactionId: successfulPayment.id,
+                transactionId: capturedPayment.id,
               },
             });
             console.log('✅ Payment record updated from Razorpay fetch');
