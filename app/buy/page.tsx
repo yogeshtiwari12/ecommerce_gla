@@ -422,17 +422,17 @@ export default function CheckoutPage() {
 
             if (pollResult.confirmed) {
               try {
+                paymentHandledRef.current = true;
+
                 const log = [
                   { step: 'Payment Confirmed (UPI/QR)', time: new Date().toLocaleTimeString(), status: '✅' },
                   { step: 'Creating Order Record', time: new Date().toLocaleTimeString(), status: '⏳' }
                 ];
 
                 // For async QR flows, payment is confirmed by Razorpay/webhook/payment-status.
-                // Do not create fake transaction IDs here.
-                const confirmedPaymentId = pollResult.paymentId;
-                if (!confirmedPaymentId) {
-                  throw new Error('Payment confirmed but payment ID not available yet. Please retry in a moment.');
-                }
+                // If payment ID is not available yet from gateway polling,
+                // continue with order finalization using orderId fallback so users are not stuck.
+                const confirmedPaymentId = pollResult.paymentId || orderData.orderId;
 
                 // Finalize the order
                 await finalizeOrder(userId, log, confirmedPaymentId, orderData.orderId);

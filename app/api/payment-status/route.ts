@@ -33,8 +33,15 @@ export async function GET(request: NextRequest) {
     // ── 1. Check our own database first ────────────────────────────────────────
     const payment = await prisma.paymentDetails.findFirst({
       where: {
-        orderId: orderId,
         paymentStatus: 'success',
+        OR: [
+          { orderId: orderId },
+          {
+            orderId: {
+              startsWith: `${orderId}_`,
+            },
+          },
+        ],
       },
       select: {
         id: true,
@@ -87,6 +94,17 @@ export async function GET(request: NextRequest) {
           },
         });
 
+        await prisma.paymentDetails.updateMany({
+          where: {
+            orderId: {
+              startsWith: `${orderId}_`,
+            },
+          },
+          data: {
+            paymentStatus: normalizedStatus,
+          },
+        });
+
         console.log('✅ Payment confirmed via Razorpay payments API:', successfulPayment.status);
         return NextResponse.json({
           success: true,
@@ -116,6 +134,17 @@ export async function GET(request: NextRequest) {
               data: {
                 paymentStatus: 'success',
                 transactionId: capturedPayment.id,
+              },
+            });
+
+            await prisma.paymentDetails.updateMany({
+              where: {
+                orderId: {
+                  startsWith: `${orderId}_`,
+                },
+              },
+              data: {
+                paymentStatus: 'success',
               },
             });
             console.log('✅ Payment record updated from Razorpay fetch');

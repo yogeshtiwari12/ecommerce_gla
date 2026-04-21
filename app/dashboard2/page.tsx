@@ -285,11 +285,10 @@ export default function Dashboard2Page() {
   
   // Pie chart hover state
   const [activePieSlice, setActivePieSlice] = useState<string | null>(null);
-  
-  // Permission dropdown state
+
   const [expandedRole, setExpandedRole] = useState<string | null>("Manager");
 
-  // Fetch admin data on mount
+
   useEffect(() => {
     if (session?.user) {
       dispatch(get_admin_dashboard_data());
