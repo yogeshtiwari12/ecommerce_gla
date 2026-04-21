@@ -1,6 +1,12 @@
 import { prisma } from "@/app/lib/prisma";
 import { NextResponse } from "next/server";
-import crypto from "crypto";    
+import crypto from "crypto";
+import Razorpay from "razorpay";
+
+const razorpay = new Razorpay({
+  key_id: process.env.RAZORPAY_KEY_ID!,
+  key_secret: process.env.RAZORPAY_KEY_SECRET!,
+});
 
 export async function PUT(request: Request) {
   try {
@@ -108,24 +114,48 @@ export async function PUT(request: Request) {
       );
     }
 
-    // Razorpay payment verification
-    const body = razorpay_order_id + '|' + razorpay_payment_id;
-    
-    const expectedSignature = crypto
-      .createHmac('sha256', process.env.RAZORPAY_KEY_SECRET!)
-      .update(body.toString())
-      .digest('hex');
+    let paymentStatus = 'captured';
 
-    const isAuthentic = expectedSignature === razorpay_signature;
+    try {
+      const paymentDetails = await razorpay.orders.fetchPayments(razorpay_order_id);
+      const payment = paymentDetails.items.find(item => item.id === razorpay_payment_id);
 
-    if (!isAuthentic) {
-      return NextResponse.json(
-        { success: false, error: 'Invalid signature' },
-        { status: 400 }
-      );
+      if (!payment) {
+        return NextResponse.json(
+          { success: false, error: 'Payment not found in Razorpay records' },
+          { status: 400 }
+        );
+      }
+
+      if (payment.status !== 'captured' && payment.status !== 'authorized') {
+        return NextResponse.json(
+          {
+            success: false,
+            error: 'Payment verification failed',
+            details: `Payment status is ${payment.status}`,
+          },
+          { status: 400 }
+        );
+      }
+
+      paymentStatus = payment.status;
+    } catch (razorpayError) {
+      const body = razorpay_order_id + '|' + razorpay_payment_id;
+
+      const expectedSignature = crypto
+        .createHmac('sha256', process.env.RAZORPAY_KEY_SECRET!)
+        .update(body)
+        .digest('hex');
+
+      if (expectedSignature !== razorpay_signature) {
+        return NextResponse.json(
+          { success: false, error: 'Invalid signature' },
+          { status: 400 }
+        );
+      }
     }
 
-    // Signature is valid — save payment records
+    // Payment is verified — save payment records
     if (productIdsArray.length > 0) {
         const paymentPromises = productIdsArray.map(async (productId, index) => {
           return await prisma.paymentDetails.create({
@@ -135,7 +165,7 @@ export async function PUT(request: Request) {
               item_product_id: productId,
               amount: Math.floor(amount / productIdsArray.length),
               paymentMethod: 'razorpay',
-              paymentStatus: 'success',
+              paymentStatus: paymentStatus === 'authorized' ? 'authorized' : 'success',
               transactionId: `${razorpay_payment_id}_${index}`,
             },
           });
@@ -157,7 +187,7 @@ export async function PUT(request: Request) {
               item_product_id: item.id,
               amount: Math.floor(item.user_product_price * item.user_product_cart_count),
               paymentMethod: 'razorpay',
-              paymentStatus: 'success',
+              paymentStatus: paymentStatus === 'authorized' ? 'authorized' : 'success',
               transactionId: `${razorpay_payment_id}_${index}`,
             },
           });

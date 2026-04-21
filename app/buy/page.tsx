@@ -234,9 +234,8 @@ export default function CheckoutPage() {
 
   // ─── Poll Razorpay payment status until confirmed ────────────────────────────
   const pollPaymentStatus = async (
-    razorpayOrderId: string,
-    userId: string
-  ): Promise<boolean> => {
+    razorpayOrderId: string
+  ): Promise<{ confirmed: boolean; paymentId?: string; source?: string }> => {
     const maxPolls = 24; // 2 minutes at 5s intervals
     let attempts = 0;
 
@@ -252,7 +251,11 @@ export default function CheckoutPage() {
 
         if (data.paymentCompleted) {
           console.log('✅ Payment confirmed via polling');
-          return true;
+          return {
+            confirmed: true,
+            paymentId: data?.payment?.id,
+            source: data?.source,
+          };
         }
       } catch (err) {
         console.error('Poll error:', err);
@@ -266,7 +269,7 @@ export default function CheckoutPage() {
     }
 
     console.log('❌ Polling timed out after 2 minutes');
-    return false;
+    return { confirmed: false };
   };
 
   const { data: session } = useSession();
@@ -307,6 +310,16 @@ export default function CheckoutPage() {
       log[0].status = '✅';
       log.push({ step: 'Opening Payment Gateway', time: new Date().toLocaleTimeString(), status: '✅' });
 
+      let pollIntervalId: ReturnType<typeof setInterval> | null = null;
+      let paymentFound = false;
+
+      const clearBackgroundTimers = () => {
+        if (pollIntervalId) {
+          clearInterval(pollIntervalId);
+          pollIntervalId = null;
+        }
+      };
+
       const options = {
         key: orderData.keyId,
         amount: orderData.amount,
@@ -328,6 +341,7 @@ export default function CheckoutPage() {
 
             // Mark as handled so onclose skips processing
             paymentHandledRef.current = true;
+            clearBackgroundTimers();
             console.log('🎯 Set paymentHandledRef to TRUE');
 
             log.push({ step: 'Payment Completed', time: new Date().toLocaleTimeString(), status: '✅' });
@@ -390,6 +404,8 @@ export default function CheckoutPage() {
             console.log('🔴 Modal closed. paymentHandled:', paymentHandledRef.current);
             console.log('🔴 About to poll for payment status...');
 
+            clearBackgroundTimers();
+
             // If handler() already ran, do nothing
             if (paymentHandledRef.current) {
               console.log('🔴 Handler already fired, skipping polling');
@@ -401,30 +417,25 @@ export default function CheckoutPage() {
             console.log('🔴 Order ID:', orderData.orderId);
 
             // Poll the payment-status API (which checks Razorpay directly)
-            const confirmed = await pollPaymentStatus(orderData.orderId, userId);
-            console.log('🔴 Poll result:', confirmed);
+            const pollResult = await pollPaymentStatus(orderData.orderId);
+            console.log('🔴 Poll result:', pollResult);
 
-            if (confirmed) {
+            if (pollResult.confirmed) {
               try {
                 const log = [
                   { step: 'Payment Confirmed (UPI/QR)', time: new Date().toLocaleTimeString(), status: '✅' },
                   { step: 'Creating Order Record', time: new Date().toLocaleTimeString(), status: '⏳' }
                 ];
 
-                // Save the payment record in your DB
-                await dispatch(savePayment({
-                  razorpay_order_id: orderData.orderId,
-                  razorpay_payment_id: 'qr_async',
-                  razorpay_signature: '',
-                  userId: orderData.userId,
-                  item_product_ids: itemProductIds,
-                  cartItems: isCartCheckout ? cartItems : undefined,
-                  amount: orderData.paymentAmount,
-                  paymentMethod: 'razorpay'
-                }));
+                // For async QR flows, payment is confirmed by Razorpay/webhook/payment-status.
+                // Do not create fake transaction IDs here.
+                const confirmedPaymentId = pollResult.paymentId;
+                if (!confirmedPaymentId) {
+                  throw new Error('Payment confirmed but payment ID not available yet. Please retry in a moment.');
+                }
 
                 // Finalize the order
-                await finalizeOrder(userId, log, 'qr_payment', orderData.orderId);
+                await finalizeOrder(userId, log, confirmedPaymentId, orderData.orderId);
 
               } catch (err) {
                 console.error('Order finalization error after QR payment:', err);
@@ -462,10 +473,6 @@ export default function CheckoutPage() {
       console.log('🔴 ====== RAZORPAY MODAL OPENING ======');
       console.log('🔴 Order ID:', orderData.orderId);
 
-      // ── For UPI QR: modal doesn't auto-close, so we poll in parallel ──────────
-      let pollIntervalId: NodeJS.Timeout | null = null;
-      let paymentFound = false;
-
       const startBackgroundPolling = async () => {
         console.log('🔴 Starting background payment polling...');
         pollIntervalId = setInterval(async () => {
@@ -496,28 +503,12 @@ export default function CheckoutPage() {
       // Start polling in background
       startBackgroundPolling();
 
-      // Also set a timeout to force-close modal if payment found
-      const closeIfPaidTimeout = setTimeout(async () => {
-        if (paymentFound) {
-          console.log('🔴 Payment already confirmed, closing modal...');
-          try {
-            rzp.close();
-          } catch (e) {
-            // Modal might already be closed
-          }
-        }
-      }, 2000); // Check every 2 seconds
-
-      // Store the interval ID for cleanup
-      (rzp as any)._pollIntervalId = pollIntervalId;
-      (rzp as any)._closeTimeoutId = closeIfPaidTimeout;
-
       // Handle payment failures (card declined, UPI failure etc.)
       rzp.on('payment.failed', function (response: any) {
         console.error('🔴 ====== PAYMENT FAILED EVENT ======');
         console.error('Payment failed:', response.error);
         paymentHandledRef.current = true; // prevent onclose from polling
-        if (pollIntervalId) clearInterval(pollIntervalId);
+        clearBackgroundTimers();
         alert(`❌ Payment failed: ${response.error.description}`);
         setIsProcessing(false);
       });

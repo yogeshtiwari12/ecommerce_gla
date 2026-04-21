@@ -71,6 +71,8 @@ export async function GET(request: NextRequest) {
       console.log('📋 Razorpay order status:', razorpayOrder.status);
 
       if (razorpayOrder.status === 'paid') {
+        let confirmedPaymentId: string | undefined;
+
         // Payment confirmed by Razorpay. The webhook may still be in-flight,
         // so we update the record here if it exists.
         try {
@@ -81,6 +83,8 @@ export async function GET(request: NextRequest) {
           );
 
           if (successfulPayment) {
+            confirmedPaymentId = successfulPayment.id;
+
             // Only update existing records, don't create
             await prisma.paymentDetails.updateMany({
               where: { orderId: orderId },
@@ -101,6 +105,7 @@ export async function GET(request: NextRequest) {
           paymentCompleted: true,
           source: 'razorpay',
           payment: {
+            id: confirmedPaymentId,
             orderId: orderId,
             status: razorpayOrder.status,
           },
