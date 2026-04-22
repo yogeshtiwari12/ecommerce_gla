@@ -78,6 +78,7 @@ export async function POST(request: NextRequest) {
 
     if (event.event === 'payment.failed') {
       const orderId = webhookOrderId;
+      const payment = paymentEntity;
 
       if (!orderId) {
         console.warn('Webhook failure event missing orderId:', event.event);
@@ -104,6 +105,19 @@ export async function POST(request: NextRequest) {
         orderId,
         event: event.event,
         updated: failedUpdated.count,
+      });
+
+      console.log('Razorpay failure details:', {
+        orderId,
+        paymentId: payment?.id,
+        status: payment?.status,
+        method: payment?.method,
+        amount: payment?.amount,
+        errorCode: payment?.error_code,
+        errorDescription: payment?.error_description,
+        errorReason: payment?.error_reason,
+        errorStep: payment?.error_step,
+        errorSource: payment?.error_source,
       });
     }
 
