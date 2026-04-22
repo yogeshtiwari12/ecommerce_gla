@@ -21,6 +21,17 @@ export async function GET(request: NextRequest) {
   try {
     const orderId = request.nextUrl.searchParams.get('orderId');
 
+    if (!process.env.RAZORPAY_KEY_ID || !process.env.RAZORPAY_KEY_SECRET) {
+      return NextResponse.json(
+        {
+          success: false,
+          paymentCompleted: false,
+          error: 'Razorpay server keys missing',
+        },
+        { status: 500 }
+      );
+    }
+
     if (!orderId) {
       return NextResponse.json(
         { success: false, error: 'Order ID is required' },
@@ -178,10 +189,15 @@ export async function GET(request: NextRequest) {
       // Razorpay API error (bad key, network, etc.)
       console.error('Razorpay fetch error:', razorpayErr?.error || razorpayErr);
 
+      const gatewayError = razorpayErr?.error || {};
+      const errorDescription = gatewayError?.description || razorpayErr?.message || 'Could not fetch order status from payment gateway';
+      const errorCode = gatewayError?.code || razorpayErr?.statusCode || null;
+
       return NextResponse.json({
         success: false,
         paymentCompleted: false,
-        error: 'Could not fetch order status from payment gateway',
+        error: errorDescription,
+        code: errorCode,
       });
     }
 

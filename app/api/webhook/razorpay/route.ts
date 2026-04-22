@@ -29,22 +29,35 @@ export async function POST(request: NextRequest) {
     const event = JSON.parse(rawBody);
     console.log('Razorpay webhook event:', event.event);
 
+    const paymentEntity = event?.payload?.payment?.entity;
+    const orderEntity = event?.payload?.order?.entity;
+    const webhookOrderId = paymentEntity?.order_id || orderEntity?.id;
+
     if (event.event === 'payment.captured' || event.event === 'order.paid') {
-      const payment = event.payload.payment.entity;
-      const orderId = payment.order_id;
+      const payment = paymentEntity;
+      const orderId = webhookOrderId;
+
+      if (!orderId) {
+        console.warn('Webhook success event missing orderId:', event.event);
+        return NextResponse.json({ received: true }, { status: 200 });
+      }
+
+      if (!payment?.id) {
+        console.warn('Webhook success event missing payment.id for orderId:', orderId);
+      }
 
       // Exact orderId row can safely carry real Razorpay payment id.
-      await prisma.paymentDetails.updateMany({
+      const exactUpdated = await prisma.paymentDetails.updateMany({
         where: { orderId },
         data: {
           paymentStatus: 'success',
-          transactionId: payment.id,
+          transactionId: payment?.id,
         },
       });
 
       // Multi-item records are often stored as <orderId>_<index>.
       // Keep existing transactionId values (unique constraint) and only mark success.
-      await prisma.paymentDetails.updateMany({
+      const indexedUpdated = await prisma.paymentDetails.updateMany({
         where: {
           orderId: {
             startsWith: `${orderId}_`,
@@ -54,13 +67,24 @@ export async function POST(request: NextRequest) {
           paymentStatus: 'success',
         },
       });
+
+      console.log('Webhook success update counts:', {
+        orderId,
+        event: event.event,
+        exactUpdated: exactUpdated.count,
+        indexedUpdated: indexedUpdated.count,
+      });
     }
 
     if (event.event === 'payment.failed') {
-      const payment = event.payload.payment.entity;
-      const orderId = payment.order_id;
+      const orderId = webhookOrderId;
 
-      await prisma.paymentDetails.updateMany({
+      if (!orderId) {
+        console.warn('Webhook failure event missing orderId:', event.event);
+        return NextResponse.json({ received: true }, { status: 200 });
+      }
+
+      const failedUpdated = await prisma.paymentDetails.updateMany({
         where: {
           OR: [
             { orderId },
@@ -74,6 +98,12 @@ export async function POST(request: NextRequest) {
         data: {
           paymentStatus: 'failed',
         },
+      });
+
+      console.log('Webhook failure update count:', {
+        orderId,
+        event: event.event,
+        updated: failedUpdated.count,
       });
     }
 
