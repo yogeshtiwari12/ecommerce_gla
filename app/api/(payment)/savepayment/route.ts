@@ -158,8 +158,13 @@ export async function PUT(request: Request) {
     // Payment is verified — save payment records
     if (productIdsArray.length > 0) {
         const paymentPromises = productIdsArray.map(async (productId, index) => {
-          return await prisma.paymentDetails.create({
-            data: {
+          return await prisma.paymentDetails.upsert({
+            where: { orderId: `${razorpay_order_id}_${index}` },
+            update: {
+              paymentStatus: paymentStatus === 'authorized' ? 'authorized' : 'success',
+              transactionId: `${razorpay_payment_id}_${index}`,
+            },
+            create: {
               userId: userId,
               orderId: `${razorpay_order_id}_${index}`,
               item_product_id: productId,
@@ -167,7 +172,7 @@ export async function PUT(request: Request) {
               paymentMethod: 'razorpay',
               paymentStatus: paymentStatus === 'authorized' ? 'authorized' : 'success',
               transactionId: `${razorpay_payment_id}_${index}`,
-            },
+            }
           });
         });
 
@@ -180,8 +185,13 @@ export async function PUT(request: Request) {
         });
       } else if (itemsArray.length > 0) {
         const paymentPromises = itemsArray.map(async (item, index) => {
-          return await prisma.paymentDetails.create({
-            data: {
+          return await prisma.paymentDetails.upsert({
+            where: { orderId: `${razorpay_order_id}_${index}` },
+            update: {
+              paymentStatus: paymentStatus === 'authorized' ? 'authorized' : 'success',
+              transactionId: `${razorpay_payment_id}_${index}`,
+            },
+            create: {
               userId: userId,
               orderId: `${razorpay_order_id}_${index}`,
               item_product_id: item.id,
@@ -189,7 +199,7 @@ export async function PUT(request: Request) {
               paymentMethod: 'razorpay',
               paymentStatus: paymentStatus === 'authorized' ? 'authorized' : 'success',
               transactionId: `${razorpay_payment_id}_${index}`,
-            },
+            }
           });
         });
 

@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import Razorpay from 'razorpay';
+import { prisma } from '@/app/lib/prisma';
 
 const razorpay = new Razorpay({
   key_id: process.env.RAZORPAY_KEY_ID!,
@@ -105,6 +106,41 @@ export async function POST(request: Request) {
     };
 
     const order = await razorpay.orders.create(options);
+
+    // Pre-create pending payment rows so webhook payment.failed can update status
+    // even when savepayment is never called after a failed checkout.
+    const pendingRows = productIdsArray.length > 0
+      ? productIdsArray.map((productId, index) => ({
+          userId,
+          orderId: `${order.id}_${index}`,
+          item_product_id: productId,
+          amount: Math.floor(amount / productIdsArray.length),
+          paymentMethod: 'razorpay',
+          paymentStatus: 'pending',
+          transactionId: `pending_${order.id}_${index}`,
+        }))
+      : itemsArray.map((item, index) => ({
+          userId,
+          orderId: `${order.id}_${index}`,
+          item_product_id: item.id,
+          amount: Math.floor(item.user_product_price * item.user_product_cart_count),
+          paymentMethod: 'razorpay',
+          paymentStatus: 'pending',
+          transactionId: `pending_${order.id}_${index}`,
+        }));
+
+    if (pendingRows.length > 0) {
+      const pendingInsert = await prisma.paymentDetails.createMany({
+        data: pendingRows,
+        skipDuplicates: true,
+      });
+
+      console.log('Razorpay pending payment rows ensured:', {
+        razorpayOrderId: order.id,
+        requestedRows: pendingRows.length,
+        insertedRows: pendingInsert.count,
+      });
+    }
 
     // For multiple items, prepare payment data array
     const paymentData = productIdsArray.length > 0 
