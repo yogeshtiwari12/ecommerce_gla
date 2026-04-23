@@ -1,5 +1,5 @@
 "use client";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef, useMemo } from "react";
 import { useDispatch, useSelector } from "react-redux";
 import { useSession } from "next-auth/react";
 import type { AppDispatch } from "@/app/redux/store";
@@ -268,12 +268,33 @@ export default function Dashboard2Page() {
   const [selectedEmployee, setSelectedEmployee] = useState(employeeData[0]);
   const [addEmployeeOpen, setAddEmployeeOpen] = useState(false);
   const [editEmployeeOpen, setEditEmployeeOpen] = useState(false);
+  const [employeeProfileOpen, setEmployeeProfileOpen] = useState(false);
   const [editingEmployee, setEditingEmployee] = useState(employeeData[0]);
 
   // Products state
   const [productSearch, setProductSearch] = useState("");
   const [categoryFilter, setCategoryFilter] = useState("all");
   const [productDialogOpen, setProductDialogOpen] = useState(false);
+  const [editProductDialogOpen, setEditProductDialogOpen] = useState(false);
+  const [editingProductId, setEditingProductId] = useState<string | null>(null);
+  const [isProductSaving, setIsProductSaving] = useState(false);
+  const [isAddDragActive, setIsAddDragActive] = useState(false);
+  const [isEditDragActive, setIsEditDragActive] = useState(false);
+  const addImageInputRef = useRef<HTMLInputElement | null>(null);
+  const editImageInputRef = useRef<HTMLInputElement | null>(null);
+
+  const initialProductForm = {
+    name: "",
+    description: "",
+    price: "",
+    category: "",
+    imageUrl: "",
+    stock: "",
+    reason: "",
+  };
+
+  const [addProductForm, setAddProductForm] = useState(initialProductForm);
+  const [editProductForm, setEditProductForm] = useState(initialProductForm);
 
   // Customers state
   const [customerSearch, setCustomerSearch] = useState("");
@@ -297,57 +318,259 @@ export default function Dashboard2Page() {
     }
   }, [dispatch, session?.user, status]);
 
+  const fileToDataUrl = (file: File): Promise<string> => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(String(reader.result));
+      reader.onerror = () => reject(new Error("Failed to read image file"));
+      reader.readAsDataURL(file);
+    });
+  };
+
+  const handleImageChange = async (file: File, target: "add" | "edit") => {
+    if (!file.type.startsWith("image/")) {
+      toast.error("Please upload a valid image file");
+      return;
+    }
+
+    if (file.size > 5 * 1024 * 1024) {
+      toast.error("Image must be 5MB or smaller");
+      return;
+    }
+
+    const dataUrl = await fileToDataUrl(file);
+
+    if (target === "add") {
+      setAddProductForm((prev) => ({ ...prev, imageUrl: dataUrl }));
+    } else {
+      setEditProductForm((prev) => ({ ...prev, imageUrl: dataUrl }));
+    }
+  };
+
+  const handleCreateProduct = async () => {
+    if (
+      !addProductForm.name.trim() ||
+      !addProductForm.description.trim() ||
+      !addProductForm.category.trim() ||
+      !addProductForm.imageUrl ||
+      addProductForm.price === "" ||
+      addProductForm.stock === ""
+    ) {
+      toast.error("Please fill all required product fields");
+      return;
+    }
+
+    try {
+      setIsProductSaving(true);
+      const response = await fetch("/api/addproduct", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: addProductForm.name.trim(),
+          description: addProductForm.description.trim(),
+          price: Number(addProductForm.price),
+          category: addProductForm.category.trim(),
+          imageUrl: addProductForm.imageUrl,
+          stock: Number(addProductForm.stock),
+          reason: addProductForm.reason.trim(),
+        }),
+      });
+
+      const data = await response.json();
+      if (!response.ok || !data?.success) {
+        throw new Error(data?.message || "Failed to add product");
+      }
+
+      toast.success("Product added successfully");
+      setProductDialogOpen(false);
+      setAddProductForm(initialProductForm);
+      dispatch(get_all_products_admin());
+    } catch (error) {
+      toast.error((error as Error).message || "Failed to add product");
+    } finally {
+      setIsProductSaving(false);
+    }
+  };
+
+  const openEditProductDialog = (product: any) => {
+    const productId = product.id || product.itemid;
+    if (!productId) {
+      toast.error("Invalid product selected");
+      return;
+    }
+
+    setEditingProductId(productId);
+    setEditProductForm({
+      name: product.name || product.item_name || "",
+      description: product.description || product.item_description || "",
+      price: String(product.price ?? product.item_price ?? ""),
+      category: product.category || product.item_category || "",
+      imageUrl: product.imageUrl || product.item_image || "",
+      stock: String(product.stock ?? product.item_stock ?? ""),
+      reason: product.reason || "",
+    });
+    setEditProductDialogOpen(true);
+  };
+
+  const handleUpdateProduct = async () => {
+    if (!editingProductId) {
+      toast.error("No product selected for edit");
+      return;
+    }
+
+    if (
+      !editProductForm.name.trim() ||
+      !editProductForm.description.trim() ||
+      !editProductForm.category.trim() ||
+      !editProductForm.imageUrl ||
+      editProductForm.price === "" ||
+      editProductForm.stock === ""
+    ) {
+      toast.error("Please fill all required product fields");
+      return;
+    }
+
+    try {
+      setIsProductSaving(true);
+      const response = await fetch(`/api/updateProduct/${editingProductId}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: editProductForm.name.trim(),
+          description: editProductForm.description.trim(),
+          price: Number(editProductForm.price),
+          category: editProductForm.category.trim(),
+          imageUrl: editProductForm.imageUrl,
+          stock: Number(editProductForm.stock),
+          reason: editProductForm.reason.trim(),
+        }),
+      });
+
+      const data = await response.json();
+      if (!response.ok || !data?.success) {
+        throw new Error(data?.message || "Failed to update product");
+      }
+
+      toast.success("Product updated successfully");
+      setEditProductDialogOpen(false);
+      setEditingProductId(null);
+      dispatch(get_all_products_admin());
+    } catch (error) {
+      toast.error((error as Error).message || "Failed to update product");
+    } finally {
+      setIsProductSaving(false);
+    }
+  };
+
+  const handleDeleteProduct = async (product: any) => {
+    const productId = product.id || product.itemid;
+    if (!productId) {
+      toast.error("Invalid product selected");
+      return;
+    }
+
+    const reason = window.prompt("Enter delete reason (optional):") || "";
+    const confirmed = window.confirm("Are you sure you want to delete this product?");
+    if (!confirmed) return;
+
+    try {
+      const response = await fetch(`/api/deleteProduct/${productId}`, {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ reason }),
+      });
+
+      const data = await response.json();
+      if (!response.ok || !data?.success) {
+        throw new Error(data?.message || "Failed to delete product");
+      }
+
+      toast.success("Product deleted successfully");
+      dispatch(get_all_products_admin());
+    } catch (error) {
+      toast.error((error as Error).message || "Failed to delete product");
+    }
+  };
+
+  // Derived lists (memoized for better dashboard performance)
+  const departments = useMemo(
+    () => [...new Set(employeeData.map((e) => e.department))],
+    []
+  );
+
+  // Use Redux employee data if available, fallback to mock data
+  const displayEmployees = useMemo(
+    () => (employeesList && employeesList.length > 0 ? employeesList : employeeData),
+    [employeesList]
+  );
+
+  const filteredEmployees = useMemo(() => {
+    const search = employeeSearch.toLowerCase();
+    return displayEmployees.filter((e: any) => {
+      const name = (e.name || "").toLowerCase();
+      const role = (e.role || "").toLowerCase();
+      const email = (e.email || "").toLowerCase();
+      const matchesSearch = name.includes(search) || role.includes(search) || email.includes(search);
+      const matchesDept = deptFilter === "all" || e.department === deptFilter;
+      return matchesSearch && matchesDept;
+    });
+  }, [displayEmployees, employeeSearch, deptFilter]);
+
+  const filteredCustomers = useMemo(() => {
+    const search = customerSearch.toLowerCase();
+    return customers.filter(
+      (c) => c.name.toLowerCase().includes(search) || c.email.toLowerCase().includes(search)
+    );
+  }, [customerSearch]);
+
+  // Map API recentOrders to table format
+  const recentOrdersFromAPI = useMemo(
+    () =>
+      adminDashboardData?.recentOrders?.map((order: any) => ({
+        id: order.Order,
+        customer: order.Customer,
+        total: order.Total,
+        status: order.Status?.toLowerCase() || "pending",
+        date: new Date(order.Date).toLocaleDateString(),
+      })) || [],
+    [adminDashboardData]
+  );
+
+  // Use API orders if available, fallback to mock data
+  const displayOrders = useMemo(
+    () => (recentOrdersFromAPI.length > 0 ? recentOrdersFromAPI : orders),
+    [recentOrdersFromAPI]
+  );
+
+  // Use Redux product data if available, fallback to mock data
+  const displayProducts = useMemo(
+    () => (adminProducts && adminProducts.length > 0 ? adminProducts : products),
+    [adminProducts]
+  );
+
+  const categories = useMemo<string[]>(
+    () =>
+      [...new Set(displayProducts.map((p: any) => p.category || p.item_category).filter(Boolean))] as string[],
+    [displayProducts]
+  );
+
+  const filteredProducts = useMemo(() => {
+    const search = productSearch.toLowerCase();
+    return displayProducts.filter((p: any) => {
+      const name = (p.name || "").toLowerCase();
+      const sku = (p.sku || "").toLowerCase();
+      const itemName = (p.item_name || "").toLowerCase();
+      const matchesSearch = name.includes(search) || sku.includes(search) || itemName.includes(search);
+      const matchesCategory =
+        categoryFilter === "all" || p.category === categoryFilter || p.item_category === categoryFilter;
+      return matchesSearch && matchesCategory;
+    });
+  }, [displayProducts, productSearch, categoryFilter]);
 
   // Show loading state while checking auth (proxy handles redirects)
   if (status === "loading") {
     return <div className="flex items-center justify-center min-h-screen">Loading...</div>;
   }
-  // Derived lists
-  const departments = [...new Set(employeeData.map((e) => e.department))];
-
-  // Use Redux employee data if available, fallback to mock data
-  const displayEmployees = employeesList && employeesList.length > 0 ? employeesList : employeeData;
-
-  const filteredEmployees = displayEmployees.filter((e: any) => {
-    const matchesSearch =
-      e.name.toLowerCase().includes(employeeSearch.toLowerCase()) ||
-      e.role.toLowerCase().includes(employeeSearch.toLowerCase()) ||
-      e.email.toLowerCase().includes(employeeSearch.toLowerCase());
-    const matchesDept = deptFilter === "all" || e.department === deptFilter;
-    return matchesSearch && matchesDept;
-  });
-
-  const filteredCustomers = customers.filter(
-    (c) =>
-      c.name.toLowerCase().includes(customerSearch.toLowerCase()) ||
-      c.email.toLowerCase().includes(customerSearch.toLowerCase())
-  );
-
-  // Map API recentOrders to table format
-  const recentOrdersFromAPI = adminDashboardData?.recentOrders?.map((order: any) => ({
-    id: order.Order,
-    customer: order.Customer,
-    total: order.Total,
-    status: order.Status?.toLowerCase() || "pending",
-    date: new Date(order.Date).toLocaleDateString(),
-  })) || [];
-
-  // Use API orders if available, fallback to mock data
-  const displayOrders = recentOrdersFromAPI.length > 0 ? recentOrdersFromAPI : orders;
-
-  const categories = [...new Set(products.map((p) => p.category))];
-
-  // Use Redux product data if available, fallback to mock data
-  const displayProducts = adminProducts && adminProducts.length > 0 ? adminProducts : products;
-
-  const filteredProducts = displayProducts.filter((p: any) => {
-    const matchesSearch =
-      p.name.toLowerCase().includes(productSearch.toLowerCase()) ||
-      p.sku?.toLowerCase().includes(productSearch.toLowerCase()) ||
-      p.item_name?.toLowerCase().includes(productSearch.toLowerCase());
-    const matchesCategory = categoryFilter === "all" || p.category === categoryFilter || p.item_category === categoryFilter;
-    return matchesSearch && matchesCategory;
-  });
 
   const tabTitles: Record<string, { title: string; subtitle: string }> = {
     overview:   { title: "Dashboard",  subtitle: "Welcome back, Admin" },
@@ -833,10 +1056,7 @@ export default function Dashboard2Page() {
                                 <Button variant="ghost" size="icon" className="h-8 w-8"><MoreHorizontal className="h-4 w-4" /></Button>
                               </DropdownMenuTrigger>
                               <DropdownMenuContent align="end">
-                                <DropdownMenuItem onClick={(e) => { e.stopPropagation(); setSelectedEmployee(emp); }}><Eye className="mr-2 h-3.5 w-3.5" /> View Profile</DropdownMenuItem>
-                                <DropdownMenuItem onClick={(e) => { e.stopPropagation(); setEditingEmployee(emp); setEditEmployeeOpen(true); }}><Pencil className="mr-2 h-3.5 w-3.5" /> Edit</DropdownMenuItem>
-                                <DropdownMenuItem onClick={(e) => { e.stopPropagation(); toast.success(`Email sent to ${emp.email}`); }}><Mail className="mr-2 h-3.5 w-3.5" /> Send Email</DropdownMenuItem>
-                                <DropdownMenuItem className="text-destructive" onClick={(e) => { e.stopPropagation(); toast.error(`${emp.name} has been deactivated`); }}><Ban className="mr-2 h-3.5 w-3.5" /> Deactivate</DropdownMenuItem>
+                                <DropdownMenuItem onClick={(e) => { e.stopPropagation(); setSelectedEmployee(emp); setEmployeeProfileOpen(true); }}><Eye className="mr-2 h-3.5 w-3.5" /> View Profile</DropdownMenuItem>
                               </DropdownMenuContent>
                             </DropdownMenu>
                           </TableCell>
@@ -847,6 +1067,36 @@ export default function Dashboard2Page() {
                 </CardContent>
               </Card>
               <p className="text-sm text-muted-foreground">Showing {filteredEmployees.length} of {displayEmployees.length} employees</p>
+
+              <Dialog open={employeeProfileOpen} onOpenChange={setEmployeeProfileOpen}>
+                <DialogContent className="max-w-md">
+                  <DialogHeader>
+                    <DialogTitle>Employee Profile</DialogTitle>
+                  </DialogHeader>
+                  <div className="space-y-4">
+                    <div className="flex items-center gap-3">
+                      <Avatar className="h-12 w-12">
+                        <AvatarFallback className="bg-primary/10 text-primary font-semibold">
+                          {selectedEmployee?.avatar || selectedEmployee?.name?.charAt(0)?.toUpperCase() || "E"}
+                        </AvatarFallback>
+                      </Avatar>
+                      <div>
+                        <p className="font-semibold">{selectedEmployee?.name || "N/A"}</p>
+                        <p className="text-sm text-muted-foreground">{selectedEmployee?.role || "N/A"}</p>
+                      </div>
+                    </div>
+                    <div className="space-y-2 text-sm">
+                      <p><span className="text-muted-foreground">Email:</span> {selectedEmployee?.email || "N/A"}</p>
+                      <p><span className="text-muted-foreground">Department:</span> {selectedEmployee?.department || "N/A"}</p>
+                      <p><span className="text-muted-foreground">Status:</span> {selectedEmployee?.status || "active"}</p>
+                      <p><span className="text-muted-foreground">Joined:</span> {selectedEmployee?.joined || "Recently"}</p>
+                    </div>
+                  </div>
+                  <DialogFooter>
+                    <Button onClick={() => setEmployeeProfileOpen(false)}>Close</Button>
+                  </DialogFooter>
+                </DialogContent>
+              </Dialog>
             </TabsContent>
 
             {/* PROFILE & SETTINGS REMOVED */}
@@ -1395,49 +1645,64 @@ export default function Dashboard2Page() {
                 </DialogHeader>
                 <div className="grid gap-4 py-4">
                   <div className="grid grid-cols-2 gap-4">
-                    <div className="space-y-2"><Label>Product Name</Label><Input placeholder="e.g. Wireless Headphones" /></div>
-                    <div className="space-y-2"><Label>SKU</Label><Input placeholder="e.g. WHP-001" /></div>
-                  </div>
-                  <div className="space-y-2"><Label>Description</Label><Textarea placeholder="Product description..." rows={3} /></div>
-                  <div className="grid grid-cols-3 gap-4">
-                    <div className="space-y-2"><Label>Price ($)</Label><Input type="number" placeholder="0.00" /></div>
-                    <div className="space-y-2"><Label>Compare Price ($)</Label><Input type="number" placeholder="0.00" /></div>
-                    <div className="space-y-2"><Label>Stock Quantity</Label><Input type="number" placeholder="0" /></div>
-                  </div>
-                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2"><Label>Name</Label><Input value={addProductForm.name} onChange={(e) => setAddProductForm((prev) => ({ ...prev, name: e.target.value }))} placeholder="Enter product name" /></div>
                     <div className="space-y-2">
                       <Label>Category</Label>
-                      <Select><SelectTrigger><SelectValue placeholder="Select category" /></SelectTrigger>
-                        <SelectContent>{categories.map((c) => <SelectItem key={c} value={c}>{c}</SelectItem>)}</SelectContent>
-                      </Select>
-                    </div>
-                    <div className="space-y-2">
-                      <Label>Status</Label>
-                      <Select><SelectTrigger><SelectValue placeholder="Select status" /></SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="active">Active</SelectItem>
-                          <SelectItem value="draft">Draft</SelectItem>
-                          <SelectItem value="archived">Archived</SelectItem>
-                        </SelectContent>
-                      </Select>
+                      <Input value={addProductForm.category} onChange={(e) => setAddProductForm((prev) => ({ ...prev, category: e.target.value }))} placeholder="Enter category" />
                     </div>
                   </div>
+                  <div className="space-y-2"><Label>Description</Label><Textarea value={addProductForm.description} onChange={(e) => setAddProductForm((prev) => ({ ...prev, description: e.target.value }))} placeholder="Product description" rows={3} /></div>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2"><Label>Price (INR)</Label><Input type="number" value={addProductForm.price} onChange={(e) => setAddProductForm((prev) => ({ ...prev, price: e.target.value }))} placeholder="0" /></div>
+                    <div className="space-y-2"><Label>Stock</Label><Input type="number" value={addProductForm.stock} onChange={(e) => setAddProductForm((prev) => ({ ...prev, stock: e.target.value }))} placeholder="0" /></div>
+                  </div>
+                  <div className="space-y-2"><Label>Reason</Label><Textarea value={addProductForm.reason} onChange={(e) => setAddProductForm((prev) => ({ ...prev, reason: e.target.value }))} placeholder="Why this product is recommended" rows={2} /></div>
                   <div className="space-y-2">
-                    <Label>Product Images</Label>
-                    <div className="border-2 border-dashed rounded-lg p-8 text-center text-muted-foreground hover:border-primary/50 transition-colors cursor-pointer">
+                    <Label>Image</Label>
+                    <input
+                      ref={addImageInputRef}
+                      type="file"
+                      accept="image/*"
+                      className="hidden"
+                      onChange={(e) => {
+                        const file = e.target.files?.[0];
+                        if (file) {
+                          handleImageChange(file, "add").catch(() => toast.error("Failed to process image"));
+                        }
+                      }}
+                    />
+                    <div
+                      onClick={() => addImageInputRef.current?.click()}
+                      onDragOver={(e) => {
+                        e.preventDefault();
+                        setIsAddDragActive(true);
+                      }}
+                      onDragLeave={() => setIsAddDragActive(false)}
+                      onDrop={(e) => {
+                        e.preventDefault();
+                        setIsAddDragActive(false);
+                        const file = e.dataTransfer.files?.[0];
+                        if (file) {
+                          handleImageChange(file, "add").catch(() => toast.error("Failed to process image"));
+                        }
+                      }}
+                      className={cn(
+                        "border-2 border-dashed rounded-lg p-8 text-center text-muted-foreground transition-colors cursor-pointer",
+                        isAddDragActive ? "border-primary bg-primary/5" : "hover:border-primary/50"
+                      )}
+                    >
                       <Upload className="mx-auto h-8 w-8 mb-2" />
                       <p className="text-sm font-medium">Click to upload or drag and drop</p>
                       <p className="text-xs">PNG, JPG, WEBP up to 5MB</p>
+                      {addProductForm.imageUrl && (
+                        <img src={addProductForm.imageUrl} alt="Preview" className="mx-auto mt-3 h-20 w-20 rounded-md object-cover" />
+                      )}
                     </div>
-                  </div>
-                  <div className="space-y-2">
-                    <Label>Tags</Label>
-                    <Input placeholder="e.g. featured, sale, new-arrival (comma-separated)" />
                   </div>
                 </div>
                 <DialogFooter>
                   <Button variant="outline" onClick={() => setProductDialogOpen(false)}>Cancel</Button>
-                  <Button onClick={() => { toast.success("Product saved successfully"); setProductDialogOpen(false); }}>Save Product</Button>
+                  <Button onClick={handleCreateProduct} disabled={isProductSaving}>{isProductSaving ? "Saving..." : "Save Product"}</Button>
                 </DialogFooter>
               </DialogContent>
             </Dialog>
@@ -1460,10 +1725,20 @@ export default function Dashboard2Page() {
                 <TableBody>
                   {filteredProducts.map((product: any) => (
                     <TableRow key={product.id}>
-                      <TableCell className="text-2xl">{product.image || product.item_image || '📦'}</TableCell>
+                      <TableCell>
+                        {product.imageUrl || product.item_image ? (
+                          <img
+                            src={product.imageUrl || product.item_image}
+                            alt={product.name || product.item_name || "Product"}
+                            className="h-10 w-10 rounded-md object-cover border border-border"
+                          />
+                        ) : (
+                          <span className="text-2xl">📦</span>
+                        )}
+                      </TableCell>
                       <TableCell className="font-medium">{product.name || product.item_name || 'N/A'}</TableCell>
                       <TableCell className="text-sm">{product.category || product.item_category || 'N/A'}</TableCell>
-                      <TableCell className="font-medium">${(product.price || product.item_price || 0).toFixed(2)}</TableCell>
+                      <TableCell className="font-medium">₹{Number(product.price || product.item_price || 0).toFixed(2)}</TableCell>
                       <TableCell className="text-sm">{product.stock || product.item_stock || 'N/A'}</TableCell>
                       <TableCell><StatusBadge status={product.status || "active"} /></TableCell>
                       <TableCell>
@@ -1472,8 +1747,8 @@ export default function Dashboard2Page() {
                             <Button variant="ghost" size="icon" className="h-8 w-8"><MoreHorizontal className="h-4 w-4" /></Button>
                           </DropdownMenuTrigger>
                           <DropdownMenuContent align="end">
-                            <DropdownMenuItem><Pencil className="mr-2 h-3.5 w-3.5" /> Edit</DropdownMenuItem>
-                            <DropdownMenuItem className="text-destructive"><Trash2 className="mr-2 h-3.5 w-3.5" /> Delete</DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => openEditProductDialog(product)}><Pencil className="mr-2 h-3.5 w-3.5" /> Edit</DropdownMenuItem>
+                            <DropdownMenuItem className="text-destructive" onClick={() => handleDeleteProduct(product)}><Trash2 className="mr-2 h-3.5 w-3.5" /> Delete</DropdownMenuItem>
                           </DropdownMenuContent>
                         </DropdownMenu>
                       </TableCell>
@@ -1483,6 +1758,72 @@ export default function Dashboard2Page() {
               </Table>
             </CardContent>
           </Card>
+
+          <Dialog open={editProductDialogOpen} onOpenChange={setEditProductDialogOpen}>
+            <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
+              <DialogHeader>
+                <DialogTitle>Edit Product</DialogTitle>
+              </DialogHeader>
+              <div className="grid gap-4 py-4">
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2"><Label>Name</Label><Input value={editProductForm.name} onChange={(e) => setEditProductForm((prev) => ({ ...prev, name: e.target.value }))} /></div>
+                  <div className="space-y-2"><Label>Category</Label><Input value={editProductForm.category} onChange={(e) => setEditProductForm((prev) => ({ ...prev, category: e.target.value }))} /></div>
+                </div>
+                <div className="space-y-2"><Label>Description</Label><Textarea value={editProductForm.description} onChange={(e) => setEditProductForm((prev) => ({ ...prev, description: e.target.value }))} rows={3} /></div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2"><Label>Price (INR)</Label><Input type="number" value={editProductForm.price} onChange={(e) => setEditProductForm((prev) => ({ ...prev, price: e.target.value }))} /></div>
+                  <div className="space-y-2"><Label>Stock</Label><Input type="number" value={editProductForm.stock} onChange={(e) => setEditProductForm((prev) => ({ ...prev, stock: e.target.value }))} /></div>
+                </div>
+                <div className="space-y-2"><Label>Reason</Label><Textarea value={editProductForm.reason} onChange={(e) => setEditProductForm((prev) => ({ ...prev, reason: e.target.value }))} rows={2} /></div>
+                <div className="space-y-2">
+                  <Label>Image</Label>
+                  <input
+                    ref={editImageInputRef}
+                    type="file"
+                    accept="image/*"
+                    className="hidden"
+                    onChange={(e) => {
+                      const file = e.target.files?.[0];
+                      if (file) {
+                        handleImageChange(file, "edit").catch(() => toast.error("Failed to process image"));
+                      }
+                    }}
+                  />
+                  <div
+                    onClick={() => editImageInputRef.current?.click()}
+                    onDragOver={(e) => {
+                      e.preventDefault();
+                      setIsEditDragActive(true);
+                    }}
+                    onDragLeave={() => setIsEditDragActive(false)}
+                    onDrop={(e) => {
+                      e.preventDefault();
+                      setIsEditDragActive(false);
+                      const file = e.dataTransfer.files?.[0];
+                      if (file) {
+                        handleImageChange(file, "edit").catch(() => toast.error("Failed to process image"));
+                      }
+                    }}
+                    className={cn(
+                      "border-2 border-dashed rounded-lg p-8 text-center text-muted-foreground transition-colors cursor-pointer",
+                      isEditDragActive ? "border-primary bg-primary/5" : "hover:border-primary/50"
+                    )}
+                  >
+                    <Upload className="mx-auto h-8 w-8 mb-2" />
+                    <p className="text-sm font-medium">Click to upload or drag and drop</p>
+                    <p className="text-xs">PNG, JPG, WEBP up to 5MB</p>
+                    {editProductForm.imageUrl && (
+                      <img src={editProductForm.imageUrl} alt="Preview" className="mx-auto mt-3 h-20 w-20 rounded-md object-cover" />
+                    )}
+                  </div>
+                </div>
+              </div>
+              <DialogFooter>
+                <Button variant="outline" onClick={() => setEditProductDialogOpen(false)}>Cancel</Button>
+                <Button onClick={handleUpdateProduct} disabled={isProductSaving}>{isProductSaving ? "Updating..." : "Update Product"}</Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
         </TabsContent>
 
         {/* ─── CUSTOMERS ─────────────────────────────────────────────────── */}
@@ -1526,7 +1867,7 @@ export default function Dashboard2Page() {
                       </TableCell>
                       <TableCell className="text-sm">{customer.orders}</TableCell>
                       <TableCell className="font-medium">${customer.spent.toFixed(2)}</TableCell>
-                      <TableCell className="text-xs font-mono text-muted-foreground">192.168.1.{Math.floor(Math.random() * 254)}</TableCell>
+                      <TableCell className="text-xs font-mono text-muted-foreground">{(customer as any).ipAddress || "192.168.1.100"}</TableCell>
                       <TableCell><StatusBadge status={customer.status} /></TableCell>
                       <TableCell className="text-sm text-muted-foreground">{customer.joined}</TableCell>
                       <TableCell>
