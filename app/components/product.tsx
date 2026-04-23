@@ -12,6 +12,7 @@ import { addcart_data, getproduct_data, product } from "../redux/product";
 import { AppDispatch } from '../redux/store';
 import { toast } from "sonner";
 import { NumberTicker } from "./NumberTicker";
+import Link from "next/link";
 
 
 
@@ -28,7 +29,7 @@ function ProductPage() {
   // console.log("Selected Price Range:", data);
 
   const categories = ["All", "Electronics", "Wearables", "Bags", "Fashion", "Home & Living", "Clothing"];
-  const priceRanges = ["All Prices", "Under $1000", "$1000 - $2000", "$2000 - $3000", "Above $3000"];
+  const priceRanges = ["All Prices", "Under ₹1000", "₹1000 - ₹2000", "₹2000 - ₹3000", "Above ₹3000"];
   // console.log("Selected Category:", selectedCategory);
 
   const addcart = async (productId: string) => {
@@ -94,10 +95,10 @@ function ProductPage() {
       (product.title?.toLowerCase() || "").includes(searchQuery.toLowerCase()); // Ensure `title` is a string
 
     let matchesPrice = true;
-    if (selectedPrice === "Under $1000") matchesPrice = product.price < 1000;
-    else if (selectedPrice === "$1000 - $2000") matchesPrice = product.price >= 1000 && product.price < 2000;
-    else if (selectedPrice === "$2000 - $3000") matchesPrice = product.price >= 2000 && product.price < 3000;
-    else if (selectedPrice === "Above $3000") matchesPrice = product.price >= 3000;
+    if (selectedPrice === "Under ₹1000") matchesPrice = product.price < 1000;
+    else if (selectedPrice === "₹1000 - ₹2000") matchesPrice = product.price >= 1000 && product.price < 2000;
+    else if (selectedPrice === "₹2000 - ₹3000") matchesPrice = product.price >= 2000 && product.price < 3000;
+    else if (selectedPrice === "Above ₹3000") matchesPrice = product.price >= 3000;
 
     return matchesCategory && matchesPrice && matchesSearch;
   });
@@ -317,11 +318,11 @@ function ProductPage() {
                       </h3>
                       <div className="flex-shrink-0 text-right">
                         <div className="text-2xl font-bold text-success whitespace-nowrap">
-                          ${product.price || '0'}
+                          ₹{product.price || '0'}
                         </div>
                         {product.originalPrice && product.originalPrice > product.price && (
                           <div className="text-xs text-muted-foreground line-through mt-1">
-                            ${product.originalPrice}
+                            ₹{product.originalPrice}
                           </div>
                         )}
                       </div>
@@ -409,12 +410,10 @@ function ProductPage() {
           <div className="grid grid-cols-1 md:grid-cols-4 gap-12 mb-16">
             {/* Brand */}
             <div>
-              <div className="flex items-center gap-3 mb-5">
-                <div className="w-12 h-12 bg-primary rounded-xl flex items-center justify-center shadow-md">
-                  <span className="text-primary-foreground font-bold text-2xl">S</span>
-                </div>
-                <span className="text-2xl font-bold text-foreground">Shopify</span>
-              </div>
+              <Link href="/" className="inline-flex items-center ">
+            <span className="text-2xl text-gray-600 font-black tracking-tight text-foreground">Sho</span>
+            <span className="text-2xl font-black tracking-tight text-primary">pify</span>
+          </Link>
               <p className="text-muted-foreground text-sm leading-relaxed mb-6">
                 Curated selection of premium products for modern living. Quality guaranteed.
               </p>

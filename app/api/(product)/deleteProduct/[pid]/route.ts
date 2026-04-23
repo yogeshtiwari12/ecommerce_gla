@@ -7,8 +7,9 @@ export async function DELETE(request: Request,
   context: { params: Promise<{ pid: string }> }
 ) {
     try {
-        
+                const body = await request.json().catch(() => ({}));
         const {pid} = await context.params;
+                const reason = typeof body?.reason === "string" ? body.reason.trim() : "";
         
         if (!pid) {
             return Response.json({
@@ -24,7 +25,7 @@ export async function DELETE(request: Request,
                 success: false
             }, { status: 401 });
         }
-          const deletedProduct = await prisma.userProduct.delete({
+                    const deletedProduct = await prisma.item.delete({
             where: { id: pid }
           });
      
@@ -38,7 +39,8 @@ export async function DELETE(request: Request,
         return Response.json({
             message: "Product deleted successfully",
             success: true,
-            deletedProduct
+            deletedProduct,
+            reason: reason || undefined,
         }, { status: 200 });
     } 
     catch (error) {

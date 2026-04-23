@@ -1,20 +1,17 @@
 "use client";
-import React, { use, useEffect, useState } from "react";
+import React, { useEffect, useState } from "react";
 import { Menu } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Sheet,
-  
-  SheetClose,
   SheetContent,
   SheetTrigger,
   SheetTitle,
   SheetHeader,
 } from "@/components/ui/sheet";
 import { useSession, signOut } from "next-auth/react";
-import axios from "axios";
 import { toast } from "sonner";
-import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { getDefaultRouteForRole } from "@/lib/role-routes";
 import { ThemeToggle } from "./ThemeToggle";
 
@@ -30,11 +27,6 @@ const Navbar = () => {
 
   // console.log("Session Data:", session);
   
-
-const router = useRouter();
-
-
-
   const navItems = [
     { name: "Home", href: "/" },
     { name: "About", href: "/about" },
@@ -63,7 +55,10 @@ const router = useRouter();
     <nav className="bg-card dark:bg-card border-b border-border fixed top-0 left-0 right-0 z-50 shadow-sm">
       <div className="max-w-8xl mx-auto px-2 sm:px-4">
         <div className="flex justify-between items-center h-16 relative">
-          <div className="text-xl font-bold text-primary dark:text-primary">Logo</div>
+          <Link href="/" className="inline-flex items-center ">
+            <span className="text-2xl text-gray-600 font-black tracking-tight text-foreground">Sho</span>
+            <span className="text-2xl font-black tracking-tight text-primary">pify</span>
+          </Link>
           <div className="hidden md:flex space-x-12 font-sans text-2sm absolute left-1/2 transform -translate-x-1/2">
             {navItems.map((item) => (
               <a

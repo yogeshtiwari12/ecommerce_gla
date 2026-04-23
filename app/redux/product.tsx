@@ -385,7 +385,7 @@ export const get_all_products_admin = createAsyncThunk(
   "product/get_all_products_admin",
   async () => {
     try {
-      const response = await axios.get(`/api/product`, {
+            const response = await axios.get(`/api/products`, {
         withCredentials: true,
       });
       if (response.status === 200) {
@@ -709,7 +709,7 @@ const productSlice = createSlice({
             })
             .addCase(get_all_products_admin.fulfilled, (state, action) => {
                 state.adminLoading = false;
-                state.adminProducts = action.payload;
+                state.adminProducts = action.payload?.data || [];
             })
             .addCase(get_all_products_admin.rejected, (state, action) => {
                 state.adminLoading = false;

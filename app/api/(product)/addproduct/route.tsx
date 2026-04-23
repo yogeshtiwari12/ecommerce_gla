@@ -10,11 +10,26 @@ cloudinary.config({
 
 export async function POST(request: Request) {
   try {
-    
     const { name, description, price, category, imageUrl, stock, reason } = await request.json();
 
-    if (!name || !description || !price || !category || !imageUrl || !stock) {
+    if (
+      !name?.trim() ||
+      !description?.trim() ||
+      price === undefined ||
+      price === null ||
+      !category?.trim() ||
+      !imageUrl?.trim() ||
+      stock === undefined ||
+      stock === null
+    ) {
       return Response.json({ success: false, message: "All fields are required" }, { status: 400 });
+    }
+
+    const parsedPrice = Number(price);
+    const parsedStock = Number(stock);
+
+    if (Number.isNaN(parsedPrice) || Number.isNaN(parsedStock)) {
+      return Response.json({ success: false, message: "Price and stock must be valid numbers" }, { status: 400 });
     }
 
     const existingProduct = await prisma.item.findFirst({ where: { name } });
@@ -29,13 +44,13 @@ export async function POST(request: Request) {
 
     const newProduct = await prisma.item.create({
       data: {
-        name,
-        description,
-        price,
-        category,
+        name: name.trim(),
+        description: description.trim(),
+        price: Math.trunc(parsedPrice),
+        category: category.trim(),
         imageUrl: uploadResult.secure_url,
-        stock,
-        reason
+        stock: Math.trunc(parsedStock),
+        reason: reason?.trim() || null,
       }             
     });
 
