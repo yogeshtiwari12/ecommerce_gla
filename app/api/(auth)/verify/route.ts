@@ -2,18 +2,30 @@ import { prisma } from "@/app/lib/prisma";
 
 
 export async function POST(request: Request) {
-  const { name, otp } = await request.json();
-
   try {
-    // await connectDb();
+    const { name, otp, email } = await request.json();
 
-    const decodedusername = decodeURIComponent(name);
+    const trimmedEmail = email ? decodeURIComponent(email).trim() : null;
+    const decodedusername = name ? decodeURIComponent(name).trim() : null;
 
-    const user = await prisma.user.findFirst({
-      where:{name:decodedusername}
+    let user = null;
+
+    if (trimmedEmail) {
+      user = await prisma.user.findFirst({
+        where: {
+          email: {
+            equals: trimmedEmail,
+            mode: "insensitive",
+          },
+        },
+      });
     }
 
-    );
+    if (!user && decodedusername) {
+      user = await prisma.user.findFirst({
+        where: { name: decodedusername },
+      });
+    }
 
     if (!user) {
       return Response.json({

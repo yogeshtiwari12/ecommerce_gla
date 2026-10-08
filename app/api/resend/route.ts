@@ -1,7 +1,5 @@
-import { Resend } from 'resend';
 import { NextResponse } from 'next/server';
-
-const resend = new Resend(process.env.RESEND_API_KEY);
+import { sendEmailUsingClient } from '../component/smtp-client';
 
 // HTML Email Template
 const createEmailHTML = (customerName: string, orderNumber: string): string => {
@@ -53,7 +51,7 @@ const createEmailHTML = (customerName: string, orderNumber: string): string => {
             <hr style="border: none; border-top: 1px solid #e5e7eb; margin: 30px 0;" />
             
             <p style="font-size: 12px; color: #9ca3af; text-align: center; margin: 0;">
-              © 2024 Your Store. All rights reserved.
+              © ${new Date().getFullYear()} Your Store. All rights reserved.
             </p>
           </div>
         </div>
@@ -75,9 +73,10 @@ export async function POST(request: Request) {
       );
     }
 
-    const { data, error } = await resend.emails.send({
-      from: 'Your Store <onboarding@resend.dev>',
-      to: [toEmail],
+    const senderEmail = process.env.EMAIL_USER || process.env.SMTP_USERNAME || '';
+    const sent = await sendEmailUsingClient({
+      from: `"Your Store" <${senderEmail}>`,
+      to: toEmail,
       subject: `Order Confirmation - ${orderNumber || 'TEST-001'}`,
       html: createEmailHTML(
         customerName || 'Valued Customer',
@@ -85,14 +84,12 @@ export async function POST(request: Request) {
       ),
     });
 
-    if (error) {
-      console.error('Resend API Error:', error);
-      return NextResponse.json({ error }, { status: 500 });
+    if (!sent) {
+      return NextResponse.json({ error: 'Failed to send confirmation email via SMTP' }, { status: 500 });
     }
 
     return NextResponse.json({ 
       success: true, 
-      data,
       message: 'Email sent successfully!' 
     });
   } catch (error) {
@@ -106,24 +103,6 @@ export async function POST(request: Request) {
 // GET endpoint for testing
 export async function GET() {
   return NextResponse.json({
-    message: 'Email API is running',
-    instructions: {
-      from: {
-        testing: 'onboarding@resend.dev (default Resend domain)',
-        production: 'orders@yourdomain.com (must verify domain in Resend)'
-      },
-      to: {
-        testing: 'delivered@resend.dev (Resend test inbox)',
-        production: 'customer@email.com (actual customer email)'
-      },
-      testRequest: {
-        method: 'POST',
-        body: {
-          toEmail: 'delivered@resend.dev',
-          customerName: 'John Doe',
-          orderNumber: 'ORD-123456'
-        }
-      }
-    }
+    message: 'Email API is running using Direct TLS SMTP',
   });
 }

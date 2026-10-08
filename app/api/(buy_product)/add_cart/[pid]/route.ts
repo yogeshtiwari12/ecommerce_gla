@@ -39,6 +39,7 @@ export async function POST(
       where: {
         user_product_item_id: uniqueItemId,
         userId: isSessionActive.user.id,
+        // is
       }
     });
 

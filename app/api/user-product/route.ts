@@ -41,11 +41,48 @@ export async function POST(request: Request) {
       where: {
         userId: session.user.id,
         user_product_item_id: user_product_item_id,
+        // 
       },
     });
+    const reorderedItemId = `${user_product_item_id}-${Date.now()}-${Math.random()
+      .toString(36)
+      .slice(2, 8)}`;
     
 
     if (existingUserProduct) {
+      if (
+        existingUserProduct.product_delivery_status === "delivered" ||
+        existingUserProduct.product_delivery_status === "cancelled"
+      ) {
+        const reorderedProduct = await prisma.userProduct.create({
+          data: {
+            product_name,
+            user_product_description,
+            user_product_price,
+            user_product_category,
+            user_product_item_id: reorderedItemId,
+            user_product_imageUrl: user_product_imageUrl || null,
+            userId: session.user.id,
+            productId: user_product_item_id,
+            isorderConfirmbyUser: true,
+            cartItem: false,
+            user_product_cart_count: 1,
+          },
+        });
+
+        return NextResponse.json(
+          {
+            success: true,
+            message: "New order created from completed order",
+            product: reorderedProduct,
+            alreadyExists: true,
+            emailSent: false,
+            recreatedOrder: true,
+          },
+          { status: 201 }
+        );
+      }
+
       // Update quantity for existing product
       const updatedProduct = await prisma.userProduct.update({
         where: { id: existingUserProduct.id },

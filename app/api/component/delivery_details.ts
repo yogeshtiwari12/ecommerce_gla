@@ -1,5 +1,5 @@
 import { ApiResponse } from "./apiresponse";
-import { transporter } from "./nodemailer";
+import { sendEmailUsingClient } from "./smtp-client";
 
 interface DeliveryDetails {
   orderId: string;
@@ -145,13 +145,17 @@ export async function sendDeliveryEmail(
 
     const textContent = `Your order #${details.orderId} is on the way! Est Delivery: ${estimatedDeliveryStr}. Address: ${details.streetAddress}, ${details.city}.`;
 
-    await transporter.sendMail({
-      from: '"Kudos" <yt781703@gmail.com>',
+    const senderEmail = process.env.EMAIL_USER || process.env.SMTP_USERNAME || "yt781703@gmail.com";
+    const sent = await sendEmailUsingClient({
+      from: `"Kudos" <${senderEmail}>`,
       to: email,
       subject: `🚚 Update: Your Order #${details.orderId} has shipped!`,
       html: htmlContent,
-      text: textContent,
     });
+
+    if (!sent) {
+      return { success: false, message: "Failed to send email via SMTP" };
+    }
 
     return { success: true, message: "Email sent successfully" };
   } catch (error) {

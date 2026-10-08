@@ -1,6 +1,6 @@
 "use client";
 import { ShoppingBag, CreditCard, Lock, MapPin, Phone, Check, Shield, Package, Truck, Wallet, Building2 } from 'lucide-react';
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, Suspense } from 'react';
 import { buy_data, createOrder, verifyPayment, savePayment, createUserProduct } from '@/app/redux/product';
 import { useDispatch, useSelector } from 'react-redux';
 import { AppDispatch, RootState } from '@/app/redux/store';
@@ -8,7 +8,7 @@ import { useSearchParams } from 'next/navigation';
 import { useSession } from 'next-auth/react';
 import OrderSuccessModal from '@/app/components/OrderSuccessModal';
 
-export default function CheckoutPage() {
+function CheckoutPageContent() {
   const dispatch = useDispatch<AppDispatch>();
   const { buyData, loading } = useSelector((state: RootState) => state.product);
 
@@ -1045,5 +1045,19 @@ export default function CheckoutPage() {
         </div>
       </div>
     </div>
+  );
+}
+
+export default function CheckoutPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="min-h-screen flex items-center justify-center bg-background">
+          <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-primary"></div>
+        </div>
+      }
+    >
+      <CheckoutPageContent />
+    </Suspense>
   );
 }

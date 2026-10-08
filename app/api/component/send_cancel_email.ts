@@ -1,5 +1,5 @@
 import { ApiResponse } from "./apiresponse";
-import { transporter } from "./nodemailer";
+import { sendEmailUsingClient } from "./smtp-client";
 
 export async function sendCancelEmail(
   name: string,
@@ -107,13 +107,20 @@ export async function sendCancelEmail(
       </html>
     `;
 
-    await transporter.sendMail({
-      from: '"Kudos" <yt781703@gmail.com>',
+    const senderEmail = process.env.EMAIL_USER || process.env.SMTP_USERNAME || "yt781703@gmail.com";
+    const sent = await sendEmailUsingClient({
+      from: `"Kudos" <${senderEmail}>`,
       to: email,
       subject: "Order Cancellation Verification Code",
       html: htmlContent,
-      text: `Hello ${name}, Your verification code is: ${otp}`,
     });
+
+    if (!sent) {
+      return {
+        success: false,
+        message: "Failed to send cancellation verification email via SMTP",
+      };
+    }
 
     return {
       success: true,

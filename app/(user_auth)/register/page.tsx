@@ -50,8 +50,14 @@ function Page() {
 
       if (response.data.success) {
         toast.success(response.data.message)
+        const emailToVerify = formData.email;
+        const nameToVerify = formData.name;
+        if (typeof window !== 'undefined') {
+          sessionStorage.setItem('verification_email', emailToVerify);
+          sessionStorage.setItem('verification_name', nameToVerify);
+        }
         setFormData({ name: '', email: '', password: '' })
-        router.replace('/verify') 
+        router.replace(`/verify?email=${encodeURIComponent(emailToVerify)}&name=${encodeURIComponent(nameToVerify)}`) 
         console.log(response.data);
       } else {
         toast.error(response.data.message)

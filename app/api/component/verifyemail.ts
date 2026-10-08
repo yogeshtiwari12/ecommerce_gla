@@ -1,5 +1,5 @@
 import { ApiResponse } from "./apiresponse";
-import { transporter } from "./nodemailer";
+import { sendEmailUsingClient } from "./smtp-client";
 
 
 export async function sendVerificationEmail(
@@ -76,13 +76,20 @@ export async function sendVerificationEmail(
     `;
 
 
-  await transporter.sendMail({
-      from: '"kudos" <yt781703@gmail.com>',
+    const senderEmail = process.env.EMAIL_USER || process.env.SMTP_USERNAME || "yt781703@gmail.com";
+    const sent = await sendEmailUsingClient({
+      from: `"Kudos" <${senderEmail}>`,
       to: email,
       subject: "Your Verification Code",
       html: htmlContent,
-      text: `Hello r ${name}, Your verification code is: ${otp}`,
     });
+
+    if (!sent) {
+      return {
+        success: false,
+        message: "Failed to send verification email via SMTP",
+      };
+    }
 
 
     return {

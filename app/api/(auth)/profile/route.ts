@@ -33,26 +33,25 @@ export async function GET(request: Request) {
         
         const user_shop_data = await prisma.userProduct.findMany({
             where: { userId: session.user.id },
+            orderBy: { createdAt: "desc" },
         });
 
         const addresses = await prisma.shippingAddress.findMany({
-            where: { userId: session.user.id }
+            where: { userId: session.user.id },
+            orderBy: { createdAt: "desc" },
         });
         console.log("Fetched addresses:", addresses.length);    
 
         const user_shop_data_with_address = user_shop_data.map((product) => {
             const address = addresses.find(
-                (addr) => addr.product_id === product.id,
-            
+                (addr) =>
+                    addr.product_id === product.id ||
+                    addr.product_id === product.productId ||
+                    addr.product_id === product.user_product_item_id
             );
             
-            const fallbackAddress = !address ? addresses.find(
-                (addr) => addr.product_id === product.productId
-            ) : null;
-            
+            const fallbackAddress = addresses.length > 0 ? addresses[0] : null;
             const finalAddress = address || fallbackAddress;
-            
-            console.log(`Product ${product.id}: Found address: ${finalAddress ? finalAddress.id : 'none'}`);
             
             return { ...product, shippingAddress: finalAddress || null };
         });

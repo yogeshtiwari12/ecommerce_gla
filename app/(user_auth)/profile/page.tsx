@@ -42,7 +42,7 @@ const ProfilePage = () => {
   const [activeTab, setActiveTab] = useState("profile");
   const [removingItems, setRemovingItems] = useState<Set<string>>(new Set());
   const [searchTerm, setSearchTerm] = useState("");
-  const [statusFilter, setStatusFilter] = useState("all");
+  const [statusFilter, setStatusFilter] = useState("not_delivered");
   const [sortBy, setSortBy] = useState("newest");
   const [editingAddressOrderId, setEditingAddressOrderId] = useState<string | null>(null);
   const [addressInput, setAddressInput] = useState<Record<string, {
@@ -67,18 +67,32 @@ const ProfilePage = () => {
         totalRevenue: 0,
       };
     }
-    const orders = profileData.user_shop_data.filter(
-      (item: any) => item?.isorderConfirmbyUser === true
-    ) || [];
-    const items = orders.reduce(
-      (acc: number, item: any) => acc + (item.user_cart_count || 0),
-      0
+    const orders =
+      profileData.user_shop_data.filter(
+        (item: any) =>
+          (item?.isorderConfirmbyUser === true ||
+            item?.iscancelled === true ||
+            item?.product_delivery_status === "cancelled") &&
+          !item?.cartItem
+      ) || [];
+
+    const activeOrders = orders.filter(
+      (item: any) => !item.iscancelled && item.product_delivery_status !== "cancelled"
     );
-    const revenue = orders.reduce(
+
+    const items = activeOrders.reduce(
       (acc: number, item: any) =>
-        acc + (item.user_product_price || 0) * (item.user_cart_count || 0),
+        acc + (item.user_product_cart_count || item.user_cart_count || 1),
       0
     );
+    const revenue = activeOrders.reduce((acc: number, item: any) => {
+      const count = item.user_product_cart_count || item.user_cart_count || 1;
+      const total =
+        item.user_product_unit_total ??
+        (item.user_product_price || 0) * count;
+      return acc + total;
+    }, 0);
+
     return {
       confirmedOrders: orders,
       totalItems: items,
@@ -96,25 +110,55 @@ const ProfilePage = () => {
 
       let matchesStatus = true;
       const normalizedStatus = (order.product_delivery_status || "").toLowerCase();
-      
-      if (statusFilter === "pending") {
-        matchesStatus = normalizedStatus === "pending";
+      const isCancelled =
+        normalizedStatus === "cancelled" ||
+        normalizedStatus === "canceled" ||
+        order.iscancelled === true;
+      const isDelivered =
+        normalizedStatus === "delivered" || order.isdelivered === true;
+
+      if (statusFilter === "all") {
+        matchesStatus = true;
+      } else if (statusFilter === "not_delivered") {
+        matchesStatus = !isDelivered && !isCancelled;
+      } else if (statusFilter === "pending") {
+        matchesStatus = normalizedStatus === "pending" && !isCancelled;
       } else if (statusFilter === "shipped") {
         matchesStatus = normalizedStatus === "shipped";
       } else if (statusFilter === "delivered") {
-        matchesStatus = normalizedStatus === "delivered";
+        matchesStatus = isDelivered;
       } else if (statusFilter === "cancelled") {
-        matchesStatus = normalizedStatus === "cancelled" || normalizedStatus === "canceled";
+        matchesStatus = isCancelled;
       } else if (statusFilter === "picked_up") {
-        matchesStatus = normalizedStatus === "picked_up" || normalizedStatus === "picked up";
+        matchesStatus =
+          normalizedStatus === "picked_up" || normalizedStatus === "picked up";
       } else if (statusFilter === "in_transit") {
-        matchesStatus = normalizedStatus === "in_transit" || normalizedStatus === "in transit";
+        matchesStatus =
+          normalizedStatus === "in_transit" || normalizedStatus === "in transit";
       }
 
       return matchesSearch && matchesStatus;
     });
 
-    return filtered;
+    const now = new Date();
+    const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const startOfWeek = new Date(startOfDay);
+    startOfWeek.setDate(startOfWeek.getDate() - 7);
+    const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+    const startOfYear = new Date(now.getFullYear(), 0, 1);
+
+    if (sortBy === "week") {
+      filtered = filtered.filter((order: any) => new Date(order.createdAt) >= startOfWeek);
+    } else if (sortBy === "month") {
+      filtered = filtered.filter((order: any) => new Date(order.createdAt) >= startOfMonth);
+    } else if (sortBy === "year") {
+      filtered = filtered.filter((order: any) => new Date(order.createdAt) >= startOfYear);
+    }
+
+    return filtered.sort(
+      (a: any, b: any) =>
+        new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+    );
   }, [confirmedOrders, searchTerm, statusFilter, sortBy]);
 
   // Fetch profile function
@@ -297,8 +341,8 @@ const ProfilePage = () => {
     // resolve shippingId from product if not provided
     const resolvedShippingId =
       shippingId ||
-      profileData?.user_shop_data?.find((p: any) => p._id === orderId)?.shippingAddress?.id ||
-      profileData?.user_shop_data?.find((p: any) => p._id === orderId)?.shippingAddress?._id;
+      profileData?.user_shop_data?.find((p: any) => p._id === orderId || p.id === orderId)?.shippingAddress?.id ||
+      profileData?.user_shop_data?.find((p: any) => p._id === orderId || p.id === orderId)?.shippingAddress?._id;
 
     if (!resolvedShippingId) {
       toast.error("Unable to find shipping ID for this order.");
@@ -503,7 +547,17 @@ const ProfilePage = () => {
                 Please verify your account to access all features and ensure account security.
               </p>
               <Button
-                onClick={() => window.location.href = '/verify'}
+                onClick={() => {
+                  const targetEmail = profileData?.user?.email || session?.user?.email || '';
+                  const targetName = profileData?.user?.name || session?.user?.name || '';
+                  if (typeof window !== 'undefined' && targetEmail) {
+                    sessionStorage.setItem('verification_email', targetEmail);
+                    sessionStorage.setItem('verification_name', targetName);
+                  }
+                  window.location.href = targetEmail 
+                    ? `/verify?email=${encodeURIComponent(targetEmail)}&name=${encodeURIComponent(targetName)}`
+                    : '/verify';
+                }}
                 className="w-full bg-warning hover:bg-warning/90 text-warning-foreground font-semibold"
               >
                 Verify Account Now
@@ -795,39 +849,131 @@ const renderCarts = () => {
 
     const getOrderStatus = (order: any) => {
       const normalized = (order.product_delivery_status || "").toLowerCase();
-      if (normalized === "picked_up") {
-        return { status: "picked up", color: "text-primary", icon: Package };
+      if (normalized === "cancelled" || normalized === "canceled" || order.iscancelled) {
+        return { status: "cancelled", color: "text-destructive", icon: X };
       }
-      if (normalized === "in transit") {
+      if (normalized === "delivered" || order.isdelivered) {
+        return { status: "delivered", color: "text-emerald-500", icon: CheckCircle };
+      }
+      if (normalized === "shipped") {
+        return { status: "shipped", color: "text-amber-500", icon: Truck };
+      }
+      if (normalized === "in_transit" || normalized === "in transit") {
         return { status: "in transit", color: "text-primary", icon: Truck };
       }
-      if (order.isdelivered)
-        return { status: "delivered", color: "text-success", icon: CheckCircle };
-      if (order.isshipped)
-        return { status: "shipped", color: "text-warning", icon: Truck };
+      if (normalized === "picked_up" || normalized === "picked up") {
+        return { status: "picked up", color: "text-primary", icon: Package };
+      }
       return { status: "pending", color: "text-primary", icon: Clock };
     };
 
-    // change: status-to-percentage mapping per request
     const statusConfig = {
       pending: { percent: 20 },
-      "in transit": { percent: 30 },
-      in_transit: { percent: 30 },
-      "picked up": { percent: 45 },
-      picked_up: { percent: 45 },
-      shipped: { percent: 70 },
+      "in transit": { percent: 50 },
+      in_transit: { percent: 50 },
+      "picked up": { percent: 35 },
+      picked_up: { percent: 35 },
+      shipped: { percent: 75 },
       delivered: { percent: 100 },
       cancelled: { percent: 0 },
       canceled: { percent: 0 },
     } as const;
 
+    const orderStatusOptions = [
+      { value: "all", label: "All orders" },
+      { value: "not_delivered", label: "Active orders" },
+      { value: "pending", label: "Pending" },
+      { value: "shipped", label: "Shipped" },
+      { value: "delivered", label: "Delivered" },
+      { value: "cancelled", label: "Cancelled" },
+    ];
+
+    const timeFilterOptions = [
+      { value: "newest", label: "All time" },
+      { value: "week", label: "Last 7 days" },
+      { value: "month", label: "This month" },
+      { value: "year", label: "This year" },
+    ];
+
     return (
       <div className=" mt-8 mb-12">
-        {confirmedOrders.length > 0 ? (
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
+          <div className="bg-card border border-border rounded-2xl p-5 flex items-center gap-4 shadow-sm">
+            <div className="p-3 bg-primary/10 rounded-xl text-primary">
+              <Package className="h-6 w-6" />
+            </div>
+            <div>
+              <p className="text-xs font-medium text-muted-foreground">Total Orders</p>
+              <p className="text-2xl font-bold text-foreground">{confirmedOrders.length}</p>
+            </div>
+          </div>
+          <div className="bg-card border border-border rounded-2xl p-5 flex items-center gap-4 shadow-sm">
+            <div className="p-3 bg-primary/10 rounded-xl text-primary">
+              <ShoppingBag className="h-6 w-6" />
+            </div>
+            <div>
+              <p className="text-xs font-medium text-muted-foreground">Total Items</p>
+              <p className="text-2xl font-bold text-foreground">{totalItems}</p>
+            </div>
+          </div>
+          <div className="bg-card border border-border rounded-2xl p-5 flex items-center gap-4 shadow-sm">
+            <div className="p-3 bg-emerald-500/10 rounded-xl text-emerald-500">
+              <DollarSign className="h-6 w-6" />
+            </div>
+            <div>
+              <p className="text-xs font-medium text-muted-foreground">Total Spent</p>
+              <p className="text-2xl font-bold text-foreground">₹{totalRevenue.toLocaleString()}</p>
+            </div>
+          </div>
+        </div>
+
+        <div className="mb-6 flex flex-col gap-3 rounded-2xl border border-border bg-card p-4 shadow-sm md:flex-row md:items-center md:justify-between">
+          <div>
+            <h3 className="text-lg font-semibold text-foreground">Order filters</h3>
+            <p className="text-sm text-muted-foreground">Filter by delivery status and order age.</p>
+          </div>
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+            <div className="flex items-center gap-2 rounded-lg border border-border bg-muted px-3 py-2">
+              <Filter className="h-4 w-4 text-muted-foreground" />
+              <select
+                value={statusFilter}
+                onChange={(e) => setStatusFilter(e.target.value)}
+                className="bg-transparent text-sm font-medium text-foreground outline-none"
+              >
+                {orderStatusOptions.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div className="flex items-center gap-2 rounded-lg border border-border bg-muted px-3 py-2">
+              <Calendar className="h-4 w-4 text-muted-foreground" />
+              <select
+                value={sortBy}
+                onChange={(e) => setSortBy(e.target.value)}
+                className="bg-transparent text-sm font-medium text-foreground outline-none"
+              >
+                {timeFilterOptions.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
+        </div>
+
+        {filteredOrders.length > 0 ? (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-            {confirmedOrders.map((product: any) => {
-              // Only render if isorderConfirmbyUser is true
-              if (!product.isorderConfirmbyUser) return null;
+            {filteredOrders.map((product: any) => {
+              if (
+                !product.isorderConfirmbyUser &&
+                !product.iscancelled &&
+                product.product_delivery_status !== "cancelled"
+              )
+                return null;
 
               const orderStatus = getOrderStatus(product);
               const StatusIcon = orderStatus.icon;
@@ -840,22 +986,31 @@ const renderCarts = () => {
               
               const shippingId = currentAddress?.id || currentAddress?._id;
 
-              // add: compute pending state
               const normalizedStatus = (product.product_delivery_status || "").toLowerCase();
-              const isPending =
-                normalizedStatus
-                  ? normalizedStatus === "pending"
-                  : !product.isshipped && !product.isdelivered;
+              const isCancelled =
+                normalizedStatus === "cancelled" ||
+                normalizedStatus === "canceled" ||
+                product.iscancelled === true;
+              const isDelivered =
+                normalizedStatus === "delivered" || product.isdelivered === true;
+              const isShipped = isDelivered || normalizedStatus === "shipped";
+              const isPending = !isCancelled && !isShipped && !isDelivered;
 
-              // change: derive status percentage using normalized status
-              const rawStatus = (product.product_delivery_status || "").toLowerCase();
               const conf =
-                statusConfig[rawStatus as keyof typeof statusConfig] ||
-                (product.isdelivered
+                statusConfig[normalizedStatus as keyof typeof statusConfig] ||
+                (isCancelled
+                  ? statusConfig.cancelled
+                  : isDelivered
                   ? statusConfig.delivered
-                  : product.isshipped
+                  : isShipped
                   ? statusConfig.shipped
                   : statusConfig.pending);
+
+              const quantity =
+                product.user_product_cart_count || product.user_cart_count || 1;
+              const unitPrice = product.user_product_price || 0;
+              const orderTotal =
+                product.user_product_unit_total ?? unitPrice * quantity;
 
               return (
                 <div
@@ -891,7 +1046,7 @@ const renderCarts = () => {
                       </div>
                       <div className="text-right">
                         <p className="text-xl font-bold text-primary">
-                          ₹{product.user_product_price}
+                          ₹{unitPrice.toLocaleString()}
                         </p>
                         <p className="text-xs text-muted-foreground">per unit</p>
                       </div>
@@ -915,7 +1070,7 @@ const renderCarts = () => {
                           </span>
                         </div>
                         <p className="text-sm font-semibold text-foreground">
-                          {product.user_cart_count} items
+                          {quantity} {quantity > 1 ? "items" : "item"}
                         </p>
                       </div>
 
@@ -926,12 +1081,8 @@ const renderCarts = () => {
                             Order Total
                           </span>
                         </div>
-                        <p className="text-sm font-semibold text-primary"
->
-                          ₹
-                          {(
-                            product.user_product_price * product.user_cart_count
-                          ).toLocaleString()}
+                        <p className="text-sm font-semibold text-primary">
+                          ₹{orderTotal.toLocaleString()}
                         </p>
                       </div>
 
@@ -957,7 +1108,7 @@ const renderCarts = () => {
                         {currentAddress ? (
                           <div className="text-xs font-medium text-foreground">
                             <p>{currentAddress.streetAddress}, {currentAddress.city}, {currentAddress.state} - {currentAddress.pinCode}</p>
-                            <p>Phone: {currentAddress.phoneNumber}</p>
+                            {currentAddress.phoneNumber && <p>Phone: {currentAddress.phoneNumber}</p>}
                           </div>
                         ) : (
                           <p className="text-sm font-medium text-muted-foreground italic">
@@ -971,30 +1122,38 @@ const renderCarts = () => {
                       <div className="relative py-4">
                         <div className="absolute top-1/2 left-0 right-0 h-0.5 bg-muted transform -translate-y-1/2"></div>
                         <div
-                          className="absolute top-1/2 left-0 h-0.5 bg-primary transform -translate-y-1/2 transition-all duration-500"
+                          className={`absolute top-1/2 left-0 h-0.5 transform -translate-y-1/2 transition-all duration-500 ${
+                            isCancelled ? "bg-destructive" : "bg-primary"
+                          }`}
                           style={{ width: `${conf.percent}%` }}
                         ></div>
 
                         <div className="flex items-center justify-between relative">
                           <div className="relative flex flex-col items-center">
-                            <div className="w-3 h-3 rounded-full bg-primary border-2 border-card z-10"></div>
-                            <span className="text-xs text-primary mt-2 absolute top-full whitespace-nowrap">
-                              Ordered
+                            <div
+                              className={`w-3 h-3 rounded-full border-2 border-card z-10 ${
+                                isCancelled ? "bg-destructive" : "bg-primary"
+                              }`}
+                            ></div>
+                            <span
+                              className={`text-xs mt-2 absolute top-full whitespace-nowrap ${
+                                isCancelled ? "text-destructive" : "text-primary"
+                              }`}
+                            >
+                              {isCancelled ? "Cancelled" : "Ordered"}
                             </span>
                           </div>
 
                           <div className="relative flex flex-col items-center">
                             <div
-                              className={`w-3 h-3 rounded-full border-2 border-muted z-10 transition-colors duration-300 ${product.isshipped
-                                  ? "bg-warning"
-                                  : "bg-muted"
-                                }`}
+                              className={`w-3 h-3 rounded-full border-2 border-muted z-10 transition-colors duration-300 ${
+                                isShipped ? "bg-warning" : "bg-muted"
+                              }`}
                             ></div>
                             <span
-                              className={`text-xs mt-2 absolute top-full whitespace-nowrap transition-colors duration-300 ${product.isshipped
-                                  ? "text-warning"
-                                  : "text-muted-foreground"
-                                }`}
+                              className={`text-xs mt-2 absolute top-full whitespace-nowrap transition-colors duration-300 ${
+                                isShipped ? "text-warning" : "text-muted-foreground"
+                              }`}
                             >
                               Shipped
                             </span>
@@ -1002,16 +1161,14 @@ const renderCarts = () => {
 
                           <div className="relative flex flex-col items-center">
                             <div
-                              className={`w-3 h-3 rounded-full border-2 border-muted z-10 transition-colors duration-300 ${product.isdelivered
-                                  ? "bg-success"
-                                  : "bg-muted"
-                                }`}
+                              className={`w-3 h-3 rounded-full border-2 border-muted z-10 transition-colors duration-300 ${
+                                isDelivered ? "bg-success" : "bg-muted"
+                              }`}
                             ></div>
                             <span
-                              className={`text-xs mt-2 absolute top-full whitespace-nowrap transition-colors duration-300 ${product.isdelivered
-                                  ? "text-success"
-                                  : "text-muted-foreground"
-                                }`}
+                              className={`text-xs mt-2 absolute top-full whitespace-nowrap transition-colors duration-300 ${
+                                isDelivered ? "text-success" : "text-muted-foreground"
+                              }`}
                             >
                               Delivered
                             </span>
@@ -1189,7 +1346,7 @@ const renderCarts = () => {
             <div className="w-16 h-16 bg-muted rounded-2xl flex items-center justify-center mx-auto mb-4 border border-border">
               <ShoppingBag className="h-8 w-8 text-muted-foreground" />
             </div>
-            <p className="text-muted-foreground text-lg">No confirmed orders yet.</p>
+            <p className="text-muted-foreground text-lg">No confirmed orders match these filters.</p>
             <p className="text-muted-foreground text-sm mt-2">
               Orders will appear here once confirmed by you.
             </p>

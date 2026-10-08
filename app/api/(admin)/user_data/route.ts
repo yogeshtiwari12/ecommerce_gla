@@ -19,7 +19,7 @@ type RecentOrderRow = {
 
 type RecentOrderRaw = {
     id: string;
-    user_product_item_id: string;
+    user_product_item_id: string | null;
     user_product_unit_total: number | null;
     user_product_price: number;
     user_product_cart_count: number | null;
@@ -109,7 +109,7 @@ export async function GET(_request: Request) {
             }))
             .sort((a, b) => b.total_sales - a.total_sales);
 
-        const recentOrders: RecentOrderRow[] = recentOrdersRaw.map((order) => {
+        const recentOrders: RecentOrderRow[] = (recentOrdersRaw as unknown as RecentOrderRaw[]).map((order) => {
             const fallbackTotal =
                 order.user_product_unit_total ??
                 order.user_product_price * (order.user_product_cart_count && order.user_product_cart_count > 0 ? order.user_product_cart_count : 1);
